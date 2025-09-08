@@ -1,5 +1,8 @@
 # Ignore these files and directories in version control
 
+# Python files
+**/__pycache__/
+
 # Data (memory-intensive)
 data/
 
