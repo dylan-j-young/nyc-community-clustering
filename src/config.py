@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from pathlib import Path
 
 #### 
 # GLOBAL SETTINGS
@@ -30,21 +31,31 @@ FIPS_DICT = {
 ####
 
 # Data directories
-RAW_DATA_DIR = "data/raw"
-INTERIM_DATA_DIR = "data/interim"
-PROCESSED_DATA_DIR = "data/processed"
+DATA_DIR = Path("data")
+RAW_DATA_DIR = DATA_DIR / "raw"
+INTERIM_DATA_DIR = DATA_DIR / "interim"
+PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
-# Shapefiles: NYC census tracts (land and water)
-TRACT_SHAPEFILE = os.path.join(RAW_DATA_DIR, "shapefiles", "tl_2024_36_tract", "tl_2024_36_tract.shp")
+# Shapefiles: NYC census tracts
+RAW_SHAPEFILES_DIR = RAW_DATA_DIR / "shapefiles"
+TRACTS_RAW = (
+    RAW_SHAPEFILES_DIR 
+    / "tl_2024_36_tract" 
+    / "tl_2024_36_tract.shp"
+)
+TRACTS_CLEAN = INTERIM_DATA_DIR / "tracts_clean.parquet"
 
 # Shapefiles: Water area polygons for each county/borough
-AREAWATER_SHAPEFILES = [
-    os.path.join(
-        RAW_DATA_DIR, "shapefiles", f"tl_2024_{a}_areawater",
-        f"tl_2024_{a}_areawater.shp"
-    )
-    for a in FIPS_DICT.keys()
+AREAWATER = [(
+    RAW_SHAPEFILES_DIR
+    / f"tl_2024_{a}_areawater"
+    / f"tl_2024_{a}_areawater.shp"
+    ) for a in FIPS_DICT.keys()
 ]
 
 # Tables
-P5_TABLE = os.path.join(RAW_DATA_DIR, "P5_race-hispanic", "DECENNIALDHC2020.P5-Data.csv")
+P5_TABLE = (
+    RAW_DATA_DIR
+    / "P5_race-hispanic"
+    / "DECENNIALDHC2020.P5-Data.csv"
+)
