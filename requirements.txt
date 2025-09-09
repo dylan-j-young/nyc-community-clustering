@@ -1,0 +1,9 @@
+# type hint syntax with | introduced in python 3.10
+python>=3.10
+numpy
+pandas
+geopandas>=0.14.4
+matplotlib
+ipykernel
+contextily
+pyarrow
