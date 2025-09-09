@@ -3,6 +3,10 @@
 # Python files
 **/__pycache__/
 
+# VSCode settings
+.vscode/*
+# !.vscode/launch.json
+
 # Data (memory-intensive)
 data/
 
