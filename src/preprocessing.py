@@ -5,13 +5,17 @@ import geopandas as gpd
 
 import os
 from pathlib import Path
+from typing import Optional, Sequence
 
 from src import config
 from src.utils import clean_geoid, get_borough
 
 # Testbed in scratch_01 notebook
-def clean_tracts(input_shapefile: str | Path, 
-                 output_path: str | Path) -> gpd.GeoDataFrame:
+def clean_tracts(input_shapefile: str | Path,
+                 output_path: str | Path,
+                 areawater_shapefile: 
+                    Optional[str | Path | Sequence[str|Path]] = None
+                ) -> gpd.GeoDataFrame:
     """
     Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it. Also exports the cleaned GeoDataFrame to a parquet file (pyarrow or equivalent library required).
 
@@ -22,6 +26,9 @@ def clean_tracts(input_shapefile: str | Path,
 
     output_path : str or Path
         Desired output location for the parquet file.
+
+    areawater_shapefile : str or Path (or list thereof), optional
+        Location of the .shp file or .shp files for water areas to subtract from the census tract geometries. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for each shapefile to successfully load.
     
     Returns
     -------
@@ -64,8 +71,39 @@ def clean_tracts(input_shapefile: str | Path,
     # Convert coordinate reference to WGS84 
     gdf = gdf.to_crs(epsg=config.WGS84_EPSG)
 
+    # Load in an areawater GeoDataFrame
+    if not areawater_shapefile is None:
+        if isinstance(areawater_shapefile, Sequence):
+            # Multiple areawater shapefiles to combine
+            gdfs_water = [
+                gpd.read_file(f).to_crs(epsg=config.WGS84_EPSG) \
+                for f in config.AREAWATER
+            ]
+            gdf_water = gpd.GeoDataFrame( pd.concat(gdfs_water) )
+        else:
+            # Just a single shapefile
+            gdf_water = gpd.read_file(areawater_shapefile) \
+                        .to_crs(epsg=config.WGS84_EPSG)
+
+        # Subtract areawater polygons from the census tracts
+        gdf = gdf.overlay(gdf_water, how='difference')
+
     # Export cleaned GeoDataFrame to output_path
     gdf.to_parquet(output_path)
 
     return(gdf)
 
+if __name__ == "__main__":
+    # Quick test when running the script directly
+    gdf = clean_tracts(config.TRACTS_RAW, config.TRACTS_CLEAN,
+                       areawater_shapefile=config.AREAWATER)
+    
+    # Check that water was subtracted properly
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(10, 8))
+    gdf.plot(ax=ax,
+             facecolor="none",
+             edgecolor="black",
+             linewidth=1
+            )
+    plt.show()
