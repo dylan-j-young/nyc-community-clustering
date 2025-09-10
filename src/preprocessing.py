@@ -28,7 +28,7 @@ def clean_tracts(input_shapefile: str | Path,
         Desired output location for the parquet file.
 
     areawater_shapefile : str or Path (or list thereof), optional
-        Location of the .shp file or .shp files for water areas to subtract from the census tract geometries. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for each shapefile to successfully load.
+        Location of the .shp file or .shp files for water areas to subtract from the census tract geometries. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for each shapefile to successfully load. Default is None.
     
     Returns
     -------
@@ -61,12 +61,14 @@ def clean_tracts(input_shapefile: str | Path,
         "INTPTLON": "LONG"
     })
 
-    # Add new columns
+    # Add new columns, and convert numeric columns to numbers
     boroughs = get_borough(geoids)
     gdf.insert(1, "BOROUGH", boroughs)
+    
+    gdf[["LAT","LONG","AREA"]] = gdf[["LAT","LONG","AREA"]].apply(pd.to_numeric)
 
     # Remove census tracts (rows) not in the five boroughs
-    gdf = gdf.dropna(subset=["BOROUGH"]).reset_index(drop=True)
+    gdf = gdf.dropna(subset=["BOROUGH"])
 
     # Convert coordinate reference to WGS84 
     gdf = gdf.to_crs(epsg=config.WGS84_EPSG)
@@ -87,6 +89,9 @@ def clean_tracts(input_shapefile: str | Path,
 
         # Subtract areawater polygons from the census tracts
         gdf = gdf.overlay(gdf_water, how='difference')
+
+    # Set index to GEOID
+    gdf = gdf.set_index("GEOID")
 
     # Export cleaned GeoDataFrame to output_path
     gdf.to_parquet(output_path)
