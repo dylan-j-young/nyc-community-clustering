@@ -60,7 +60,6 @@ def get_fips(geoid: str | pd.Series) -> str | pd.Series:
     
     return( fips )
 
-
 def get_borough(geoid: str | pd.Series) -> str | pd.Series:
     """
     Reads a GEOID's county FIPS code and returns a string representing

@@ -5,7 +5,7 @@
 
 # VSCode settings
 .vscode/*
-# !.vscode/launch.json
+!.vscode/launch.json
 
 # Data (memory-intensive)
 data/
