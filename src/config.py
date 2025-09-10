@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 from pathlib import Path
@@ -25,6 +26,18 @@ FIPS_DICT = {
     "36081": "Queens",
     "36085": "Staten Island"
 }
+
+# Boroughs
+BOROUGHS = ["The Bronx",
+            "Brooklyn",
+            "Manhattan",
+            "Queens",
+            "Staten Island"]
+
+# # Distance
+# MEAN_EARTH_RADIUS = 6371 * 1000 # m
+# KM = 1000 # m
+# DEGREE_TO_M = np.pi/180 * MEAN_EARTH_RADIUS
 
 ####
 # DATA PATHS

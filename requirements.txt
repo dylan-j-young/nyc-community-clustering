@@ -1,6 +1,7 @@
 # type hint syntax with | introduced in python 3.10
 python>=3.10
-numpy
+# np.default_rng() introduced in numpy 1.17
+numpy>=1.17
 pandas
 geopandas>=0.14.4
 matplotlib
