@@ -159,3 +159,15 @@ def get_local_subregion(gdf : gpd.GeoDataFrame,
     local_tracts = borough_tracts.loc[local_ids]
 
     return( local_tracts, borough_tracts )
+
+if __name__ == "__main__":
+    from src import plotting
+    import matplotlib.pyplot as plt
+
+    # Get NYC census tracts
+    nyc_tracts = gpd.read_parquet(config.TRACTS_CLEAN)
+
+    # Test local region by plotting a random local subregion
+    local_tracts, borough_tracts = get_local_subregion(nyc_tracts, seed=42)
+    fig, ax = plotting.plot_local_subregion(local_tracts, borough_tracts)
+    plt.show()
