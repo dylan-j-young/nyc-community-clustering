@@ -36,7 +36,11 @@ My repository structure is inspired by `cookiecutter-data-science` [project link
 
 ...
 
-To run, create a .env file in the project root with your Census API key:
+DISCLAIMER: This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
+
+To pull data from the Census API, it's recommended to request an API key (limited queries are available without one, but frequent queries require a key). You can make this request at [https://www.census.gov/data/developers.html](https://www.census.gov/data/developers.html).
+
+Once you get your key, create a file called `.env` in the project root with the following line:
 ```
 CENSUS_API_KEY=your_key_here
 ```

@@ -7,6 +7,9 @@
 .vscode/*
 !.vscode/launch.json
 
+# Ignore local secrets (e.g. Census API key)
+.env
+
 # Data (memory-intensive)
 data/
 
