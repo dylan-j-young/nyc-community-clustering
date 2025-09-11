@@ -1,0 +1,178 @@
+---
+# 2020 Census Demographic Profile (skipping redundant entries)
+2020_census_dp:
+  # SEX AND AGE
+  "DP1_0001C": pop
+  "DP1_0002C": pop_under5
+  "DP1_0003C": pop_5to9
+  "DP1_0004C": pop_10to14
+  "DP1_0005C": pop_15to19
+  "DP1_0006C": pop_20to24
+  "DP1_0007C": pop_25to29
+  "DP1_0008C": pop_30to34
+  "DP1_0009C": pop_35to39
+  "DP1_0010C": pop_40to44
+  "DP1_0011C": pop_45to49
+  "DP1_0012C": pop_50to54
+  "DP1_0013C": pop_55to59
+  "DP1_0014C": pop_60to64
+  "DP1_0015C": pop_65to69
+  "DP1_0016C": pop_70to74
+  "DP1_0017C": pop_75to79
+  "DP1_0018C": pop_80to84
+  "DP1_0019C": pop_85plus
+  "DP1_0020C": pop_16plus
+  "DP1_0021C": pop_18plus
+  "DP1_0022C": pop_21plus
+  "DP1_0023C": pop_62plus
+  "DP1_0024C": pop_65plus
+  "DP1_0025C": pop_male
+  "DP1_0026C": pop_male_under5
+  "DP1_0027C": pop_male_5to9
+  "DP1_0028C": pop_male_10to14
+  "DP1_0029C": pop_male_15to19
+  "DP1_0030C": pop_male_20to24
+  "DP1_0031C": pop_male_25to29
+  "DP1_0032C": pop_male_30to34
+  "DP1_0033C": pop_male_35to39
+  "DP1_0034C": pop_male_40to44
+  "DP1_0035C": pop_male_45to49
+  "DP1_0036C": pop_male_50to54
+  "DP1_0037C": pop_male_55to59
+  "DP1_0038C": pop_male_60to64
+  "DP1_0039C": pop_male_65to69
+  "DP1_0040C": pop_male_70to74
+  "DP1_0041C": pop_male_75to79
+  "DP1_0042C": pop_male_80to84
+  "DP1_0043C": pop_male_85plus
+  "DP1_0044C": pop_male_16plus
+  "DP1_0045C": pop_male_18plus
+  "DP1_0046C": pop_male_21plus
+  "DP1_0047C": pop_male_62plus
+  "DP1_0048C": pop_male_65plus
+  "DP1_0049C": pop_female
+  "DP1_0050C": pop_female_under5
+  "DP1_0051C": pop_female_5to9
+  "DP1_0052C": pop_female_10to14
+  "DP1_0053C": pop_female_15to19
+  "DP1_0054C": pop_female_20to24
+  "DP1_0055C": pop_female_25to29
+  "DP1_0056C": pop_female_30to34
+  "DP1_0057C": pop_female_35to39
+  "DP1_0058C": pop_female_40to44
+  "DP1_0059C": pop_female_45to49
+  "DP1_0060C": pop_female_50to54
+  "DP1_0061C": pop_female_55to59
+  "DP1_0062C": pop_female_60to64
+  "DP1_0063C": pop_female_65to69
+  "DP1_0064C": pop_female_70to74
+  "DP1_0065C": pop_female_75to79
+  "DP1_0066C": pop_female_80to84
+  "DP1_0067C": pop_female_85plus
+  "DP1_0068C": pop_female_16plus
+  "DP1_0069C": pop_female_18plus
+  "DP1_0070C": pop_female_21plus
+  "DP1_0071C": pop_female_62plus
+  "DP1_0072C": pop_female_65plus
+
+  # MEDIAN AGE BY SEX
+  "DP1_0073C": medianage
+  "DP1_0074C": medianage_male
+  "DP1_0075C": medianage_female
+
+  # RACE
+  "DP1_0077C": pop_onerace
+  "DP1_0078C": pop_white
+  "DP1_0079C": pop_black
+  "DP1_0080C": pop_nativeam
+  "DP1_0081C": pop_asian
+  "DP1_0082C": pop_hipacific
+  "DP1_0083C": pop_other
+  "DP1_0084C": pop_multi
+
+  # TOTAL RACES TALLIED
+  "DP1_0085C": racetally
+  "DP1_0086C": racetally_white
+  "DP1_0087C": racetally_black
+  "DP1_0088C": racetally_nativeam
+  "DP1_0089C": racetally_asian
+  "DP1_0090C": racetally_hipacific
+  "DP1_0091C": racetally_other
+
+  # HISPANIC OR LATINO
+  "DP1_0093C": pop_hispanic
+  "DP1_0094C": pop_nonhispanic
+
+  # HISPANIC OR LATINO BY RACE
+  "DP1_0097C": pop_hispanic_white
+  "DP1_0098C": pop_hispanic_black
+  "DP1_0099C": pop_hispanic_nativeam
+  "DP1_0100C": pop_hispanic_asian
+  "DP1_0101C": pop_hispanic_hipacific
+  "DP1_0102C": pop_hispanic_other
+  "DP1_0103C": pop_hispanic_multi
+  "DP1_0105C": pop_nonhispanic_white
+  "DP1_0106C": pop_nonhispanic_black
+  "DP1_0107C": pop_nonhispanic_nativeam
+  "DP1_0108C": pop_nonhispanic_asian
+  "DP1_0109C": pop_nonhispanic_hipacific
+  "DP1_0110C": pop_nonhispanic_other
+  "DP1_0111C": pop_nonhispanic_multi
+
+  # RELATIONSHIP
+  "DP1_0113C": pop_household
+  "DP1_0114C": pop_household_householder
+  "DP1_0115C": pop_household_spouse_oppsex
+  "DP1_0116C": pop_household_spouse_samesex
+  "DP1_0117C": pop_household_unmpartner_oppsex
+  "DP1_0118C": pop_household_unmpartner_samesex
+  "DP1_0119C": pop_household_child
+  "DP1_0120C": pop_household_child_under18
+  "DP1_0121C": pop_household_grandchild
+  "DP1_0122C": pop_household_grandchild_under18
+  "DP1_0123C": pop_household_otherrelatives
+  "DP1_0124C": pop_household_nonrelatives
+  "DP1_0125C": pop_gpquarters
+  "DP1_0126C": pop_gpquarters_institutionalized
+  "DP1_0127C": pop_gpquarters_institutionalized_male
+  "DP1_0128C": pop_gpquarters_institutionalized_female
+  "DP1_0129C": pop_gpquarters_noninst
+  "DP1_0130C": pop_gpquarters_noninst_male
+  "DP1_0131C": pop_gpquarters_noninst_female
+
+  # HOUSEHOLDS BY TYPE
+  "DP1_0132C": households_total
+  "DP1_0133C": households_married
+  "DP1_0134C": households_married_withchild
+  "DP1_0135C": households_cohabit
+  "DP1_0136C": households_cohabit_withchild
+  "DP1_0137C": households_singlemale
+  "DP1_0138C": households_singlemale_alone
+  "DP1_0139C": households_singlemale_alone_65plus
+  "DP1_0140C": households_singlemale_withchild
+  "DP1_0141C": households_singlefemale
+  "DP1_0142C": households_singlefemale_alone
+  "DP1_0143C": households_singlefemale_alone_65plus
+  "DP1_0144C": households_singlefemale_withchild
+  "DP1_0145C": households_withunder18
+  "DP1_0146C": households_with65plus
+
+  # HOUSING OCCUPANCY
+  "DP1_0147C": housing_total
+  "DP1_0148C": housing_occupied
+  "DP1_0149C": housing_vacant
+  "DP1_0150C": housing_vacant_forrent
+  "DP1_0151C": housing_vacant_rentedunocc
+  "DP1_0152C": housing_vacant_forsale
+  "DP1_0153C": housing_vacant_soldunocc
+  "DP1_0154C": housing_vacant_seasonal
+  "DP1_0155C": housing_vacant_other
+
+  # VACANCY RATES
+  "DP1_0156C": vacancyrate_homeowner
+  "DP1_0157C": vacancyrate_rental
+
+  # HOUSING TENURE
+  "DP1_0158C": housing_occupied
+  "DP1_0159C": housing_owneroccupied
+  "DP1_0160C": housing_renteroccupied

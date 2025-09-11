@@ -27,6 +27,14 @@
             "module": "src.plotting",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.config",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

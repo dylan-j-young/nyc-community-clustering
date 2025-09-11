@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+
 import os
 from pathlib import Path
+import yaml
 
 #### 
 # GLOBAL SETTINGS
@@ -9,6 +11,7 @@ from pathlib import Path
 
 # Pandas settings
 pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", 100)
 
 #### 
 # GEOGRAPHY
@@ -72,3 +75,19 @@ P5_TABLE = (
     / "P5_race-hispanic"
     / "DECENNIALDHC2020.P5-Data.csv"
 )
+
+####
+# CENSUS VARIABLES
+####
+
+CONFIG_DIR = Path("config")
+
+def load_yaml(name: str):
+    """
+    Given the name of a YAML file in config/, returns the dict, list, or scalar associated with the data in the file.
+    """
+    path = CONFIG_DIR / f"{name}.yaml"
+    with open(path) as f:
+        return yaml.safe_load(f)
+    
+CENSUS_VARS = load_yaml("census_variables")
