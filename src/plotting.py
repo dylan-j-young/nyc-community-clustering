@@ -5,10 +5,97 @@ import contextily as ctx
 
 from src import config
 
+def plot_tracts(tracts, zoom_out="auto", zoom_adjust=0):
+    """
+    Quickly visualizes a subset of census tracts (or a single tract). For plotting, GeoDataFrames are locally converted to Web Mercator and then plotted on top of a contextily basemap.
+
+    Parameters
+    ----------
+    tracts : gpd.GeoDataFrame or pd.Series
+        The selected tract(s) to plot. If a single tract, the CRS is assumed to be in WGS84 to start (and then converted to Web Mercator for plotting)
+
+    zoom_out : float or "auto", optional
+        Sets a scale factor for zooming out the map from the census tract (higher = zoomed farther out). Useful if you want to see the broader region of a tract or small collection of tracts. Default is "auto", which sets to 1 for multiple tracts and 5 for a single tract.
+
+    zoom_adjust : int, optional
+        Sets an adjustment to the level of detail for the contextily basemap. A higher number increases the resolution of the map. Recommended not to go outside -1, 0, or 1 due to excessive load times. Default is 0.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+
+    # Convert single-tract pd.Series to a single-row GeoDataFrame
+    if isinstance(tracts, pd.Series):
+        tracts = gpd.GeoDataFrame(tracts.to_frame().T,
+                                  crs=config.WGS84_EPSG)
+    
+    # Convert to Web Mercator (for compatibility with basemaps)
+    tracts = tracts.to_crs(config.WEB_MERCATOR_EPSG)
+
+    # Create fig, ax
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+
+    # Add tracts to figure
+    tracts.plot(ax=ax,
+                facecolor="none",
+                edgecolor="black",
+                linewidth=1
+               )
+    
+    # Zoom out: set defaults
+    if zoom_out == "auto":
+        zoom_out = 1 if (len(tracts) > 1) else 5
+    assert not isinstance(zoom_out, str)
+    
+    # Zoom out: get current bounds and center
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    x0, y0 = (xmin+xmax)/2, (ymin+ymax)/2
+    dx, dy = (xmax-xmin)/2, (ymax-ymin)/2
+
+    # Zoom out: set new bounds
+    xmin_new, xmax_new = x0 - dx*zoom_out, x0 + dx*zoom_out
+    ymin_new, ymax_new = y0 - dy*zoom_out, y0 + dy*zoom_out
+    ax.set_xlim(xmin_new, xmax_new)
+    ax.set_ylim(ymin_new, ymax_new)
+
+    # Annotate with census tract numbers
+    for idx, row in tracts.iterrows():
+        # Label is Census Tract number
+        label = row["TRACT"]
+
+        # Label location is a representative point within the tract
+        point = row.geometry.representative_point()
+
+        ax.annotate(text=label, xy=(point.x, point.y),
+                    horizontalalignment="center",
+                    verticalalignment="center",
+                    fontsize=5)
+    
+    # Improve visualization
+    ax.set_title("Census tracts", fontsize=12)
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+    fig.tight_layout()
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=ctx.providers.CartoDB.Positron,
+                    reset_extent=True,
+                    zoom_adjust=zoom_adjust
+                   )
+
+    return( fig, ax )
+
 def plot_local_subregion(local_tracts, borough_tracts):
     """ 
-    Quickly visualizes a choice of local subregion for testing purposes.
-    For plotting, GeoDataFrames are locally converted to Web Mercator and then plotted on top of a contextily basemap.
+    Quickly visualizes a choice of local subregion for testing purposes. For plotting, GeoDataFrames are locally converted to Web Mercator and then plotted on top of a contextily basemap.
 
     Parameters
     ----------
@@ -30,47 +117,18 @@ def plot_local_subregion(local_tracts, borough_tracts):
     local_tracts = local_tracts.to_crs(config.WEB_MERCATOR_EPSG)
     borough_tracts = borough_tracts.to_crs(config.WEB_MERCATOR_EPSG)
 
-    # Create fig, ax
-    fig, ax = plt.subplots(figsize=(10, 8))
+    # Plot borough tracts
+    fig, ax = plot_tracts(borough_tracts, zoom_adjust=0)
 
-    # Add tracts to figure
-    borough_tracts.plot(ax=ax,
-                facecolor="none",
-                edgecolor="black",
-                linewidth=1
-                )
+    # Shade in local tracts
     local_tracts.plot(ax=ax,
                 facecolor="red",
                 edgecolor="none",
                 alpha=0.25
                 )
-
-    # Annotate with census tract numbers
-    for idx, row in borough_tracts.iterrows():
-        # Label is Census Tract number
-        label = row["TRACT"]
-
-        # Label location is a representative point within the tract
-        point = row.geometry.representative_point()
-
-        ax.annotate(text=label, xy=(point.x, point.y),
-                    horizontalalignment="center",
-                    verticalalignment="center",
-                    fontsize=6)
-
-
-    # Improve visualization
-    ax.set_title("Subregion census tracts", fontsize=14)
-    ax.axis("off")  # Remove axis labels for a clean map
-
-    # No default zoom
-    ax.set_aspect("equal")
-
-    ctx.add_basemap(ax, 
-                    crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
-                    reset_extent=True,
-                    zoom_adjust=1)
+    
+    # Change title
+    ax.set_title("Local region tracts", fontsize=12)
     
     return( fig, ax )
 
@@ -80,9 +138,15 @@ if __name__ == "__main__":
     # Get NYC census tracts
     nyc_tracts = gpd.read_parquet(config.TRACTS_CLEAN)
 
-    # Test local region by plotting a random local subregion
+    # Test plot_local_subregion()
     local_tracts, borough_tracts = utils.get_local_subregion(
         nyc_tracts, seed=42
         )
     fig, ax = plot_local_subregion(local_tracts, borough_tracts)
     plt.show()
+
+    # # Test plot_tracts()
+    # tract_id = "36061024100"
+    # tract = nyc_tracts.loc[tract_id]
+    # fig, ax = plot_tracts(tract, zoom_adjust=1)
+    # plt.show()
