@@ -141,7 +141,7 @@
   "DP1_0131C": pop_gpquarters_noninst_female
 
   # HOUSEHOLDS BY TYPE
-  "DP1_0132C": households_total
+  "DP1_0132C": households
   "DP1_0133C": households_married
   "DP1_0134C": households_married_withchild
   "DP1_0135C": households_cohabit
@@ -158,7 +158,7 @@
   "DP1_0146C": households_with65plus
 
   # HOUSING OCCUPANCY
-  "DP1_0147C": housing_total
+  "DP1_0147C": housing
   "DP1_0148C": housing_occupied
   "DP1_0149C": housing_vacant
   "DP1_0150C": housing_vacant_forrent
@@ -173,6 +173,5 @@
   "DP1_0157C": vacancyrate_rental
 
   # HOUSING TENURE
-  "DP1_0158C": housing_occupied
   "DP1_0159C": housing_owneroccupied
   "DP1_0160C": housing_renteroccupied
