@@ -69,12 +69,8 @@ AREAWATER = [(
     ) for a in FIPS_DICT.keys()
 ]
 
-# Tables
-P5_TABLE = (
-    RAW_DATA_DIR
-    / "P5_race-hispanic"
-    / "DECENNIALDHC2020.P5-Data.csv"
-)
+# 2020 Census Demographic Profile
+DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
 
 ####
 # CENSUS VARIABLES

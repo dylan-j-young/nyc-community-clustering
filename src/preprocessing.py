@@ -4,8 +4,11 @@ import pandas as pd
 import geopandas as gpd
 
 import os
+import requests
+import json
 from pathlib import Path
 from typing import Optional, Sequence
+from dotenv import load_dotenv
 
 from src import config
 from src.utils import clean_geoid, get_borough
@@ -98,17 +101,67 @@ def clean_tracts(input_shapefile: str | Path,
 
     return(gdf)
 
-if __name__ == "__main__":
-    # Quick test when running the script directly
-    gdf = clean_tracts(config.TRACTS_RAW, config.TRACTS_CLEAN,
-                       areawater_shapefile=config.AREAWATER)
+def fetch_2020_demographic_profile():
+    """ 
+    Calls the US Census API with a GET query for the 2020 Census Demographic Profile, for each census tract in NYC. Saves the returned data as a JSON file in config.DECENNIAL2020_DP_RAW.
+
+    Parameters
+    ----------
     
-    # Check that water was subtracted properly
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(10, 8))
-    gdf.plot(ax=ax,
-             facecolor="none",
-             edgecolor="black",
-             linewidth=1
-            )
-    plt.show()
+    Returns
+    -------
+    raw_data : list
+        The raw data returned from the GET request and saved to file
+    """
+    # Get API key from .env (user-specific local secrets)
+    load_dotenv()
+    API_KEY = os.getenv("CENSUS_API_KEY")
+    
+    # Parameters of Census API query
+    year = 2020
+    source = "dec" # Decennial Census
+    dataset = "dp" # Demographic Profile
+    cols = ",".join(["GEO_ID","group(DP1)"]) # GEO_ID and all of the DP
+    borough_fips = list(config.FIPS_DICT.keys())
+    borough_codes = [fips[2:] for fips in borough_fips]
+    boroughs = ",".join(borough_codes)
+    state = "36" # NY
+    tracts = "*" # all
+
+    # Construct URL query
+    url = f"https://api.census.gov/data/{year}/{source}/{dataset}" \
+        + f"?get={cols}" \
+        + f"&for=tract:{tracts}" \
+        + f"&in=county:{boroughs}" \
+        + f"&in=state:{state}" \
+        + f"&key={API_KEY}"
+
+    # Send GET request and retrieve a JSON-formatted response
+    response = requests.get(url)
+    print(f"GET request status: {response.status_code}")
+    raw_data = response.json()
+
+    # Write to file
+    with open(config.DECENNIAL2020_DP_RAW, "w") as f:
+        json.dump(raw_data, f)
+    
+    return(raw_data)
+
+def clean_2020_demographic_profile():
+    pass
+
+if __name__ == "__main__":
+    # # Test clean_tracts()
+    # gdf = clean_tracts(config.TRACTS_RAW, config.TRACTS_CLEAN,
+    #                    areawater_shapefile=config.AREAWATER)
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots(figsize=(10, 8))
+    # gdf.plot(ax=ax,
+    #          facecolor="none",
+    #          edgecolor="black",
+    #          linewidth=1
+    #         )
+    # plt.show()
+
+    # Test fetch_2020_demographic_profile()
+    decennial2020_dp_raw = fetch_2020_demographic_profile()
