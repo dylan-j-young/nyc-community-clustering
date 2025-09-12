@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 from dotenv import load_dotenv
 
-from src import config
-from src.utils import clean_geoid, get_borough
+from src import config, utils
 
 # Testbed in scratch_01 notebook
 def clean_tracts(input_shapefile: str | Path,
@@ -50,7 +49,7 @@ def clean_tracts(input_shapefile: str | Path,
     gdf = gpd.read_file(input_shapefile)
 
     # Preprocessing: clean GEOIDs
-    geoids = clean_geoid(gdf["GEOID"])
+    geoids = utils.clean_geoid(gdf["GEOID"])
     gdf["GEOID"] = geoids
 
     # Remove unnecessary columns
@@ -65,7 +64,7 @@ def clean_tracts(input_shapefile: str | Path,
     })
 
     # Add new columns, and convert numeric columns to numbers
-    boroughs = get_borough(geoids)
+    boroughs = utils.get_borough(geoids)
     gdf.insert(1, "BOROUGH", boroughs)
     
     gdf[["LAT","LONG","AREA"]] = gdf[["LAT","LONG","AREA"]].apply(pd.to_numeric)
@@ -148,7 +147,50 @@ def fetch_2020_demographic_profile():
     return(raw_data)
 
 def clean_2020_demographic_profile():
-    pass
+    """
+    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    df_clean : pd.DataFrame
+        The cleaned dataframe saved to file.
+    """
+    # Load raw data from file and convert to a dataframe
+    with open(config.DECENNIAL2020_DP_RAW, "r") as f:
+        raw_data = json.load(f)
+    df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+
+    # Remove duplicate columns
+    df = df.loc[:,~df.columns.duplicated()]
+
+    # Clean GEO_ID, rename to GEOID, and set as index
+    df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
+    df = df.rename(columns={"GEO_ID": "GEOID"})
+    df = df.set_index("GEOID")
+
+    # Remove end columns that are redundant
+    df = df.drop(columns=["NAME","state","county","tract"])
+
+    # Keep only the columns listed in CENSUS_VARS
+    # (Only pure counts, removing redundant columns)
+    census_var_renames = config.CENSUS_VARS["2020_census_dp"]
+    cols_to_keep = list( census_var_renames.keys() )
+    df = df[df.columns.intersection(cols_to_keep)]
+
+    # Rename columns
+    df = df.rename( columns = census_var_renames )
+
+    # Convert strings of numbers to numbers
+    for col in df:
+        df[col] = pd.to_numeric(df[col], errors="raise")
+
+    # Export cleaned DataFrame to file
+    df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
+
+    return( df )
 
 if __name__ == "__main__":
     # # Test clean_tracts()
@@ -163,5 +205,10 @@ if __name__ == "__main__":
     #         )
     # plt.show()
 
-    # Test fetch_2020_demographic_profile()
-    decennial2020_dp_raw = fetch_2020_demographic_profile()
+    # # Test fetch_2020_demographic_profile()
+    # decennial2020_dp_raw = fetch_2020_demographic_profile()
+
+    # # Test clean_2020_demographic_profile()
+    # decennial2020_dp_clean = clean_2020_demographic_profile()
+
+    pass

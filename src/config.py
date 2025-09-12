@@ -71,6 +71,7 @@ AREAWATER = [(
 
 # 2020 Census Demographic Profile
 DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
+DECENNIAL2020_DP_CLEAN = INTERIM_DATA_DIR / "decennial2020_dp_clean.parquet"
 
 ####
 # CENSUS VARIABLES
