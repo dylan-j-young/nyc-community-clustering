@@ -187,6 +187,9 @@ def clean_2020_demographic_profile():
     for col in df:
         df[col] = pd.to_numeric(df[col], errors="raise")
 
+    # Remove rows with no people
+    df = df[df["pop"] > 0]
+
     # Export cleaned DataFrame to file
     df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
 
@@ -212,3 +215,33 @@ if __name__ == "__main__":
     # decennial2020_dp_clean = clean_2020_demographic_profile()
 
     pass
+
+def remove_unpopulated_tracts():
+    """
+    Reads in the NYC census tracts as a GeoDataFrame and cleaned data from the 2020 Census Demographic Profile. Keeps only tracts that are also in the demographic profile and have a nonzero number of people.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame of census tracts in NYC with the columns:
+        GEOID : str, 11-digit GEOID for tract
+        BOROUGH : str, representing the name of the borough
+        TRACT : str, Census tract number
+        AREA : int64, land area of tract in square meters
+        LAT : str, latitude of the tract's internal point
+        LONG : str, longitude of the tract's internal point
+        geometry : Polygon, representing the tract in WGS84
+    """
+    gdf = gpd.read_parquet(config.TRACTS_CLEAN)
+    df = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
+
+
+    gdf = gdf[ gdf.index.isin(df.index) ]
+    
+    # Export cleaned GeoDataFrame
+    gdf.to_parquet(config.TRACTS_CLEAN)
+
+    return( gdf )
