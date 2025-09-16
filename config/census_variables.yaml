@@ -111,13 +111,13 @@
   "DP1_0101C": pop_hispanic_hipacific
   "DP1_0102C": pop_hispanic_other
   "DP1_0103C": pop_hispanic_multi
-  "DP1_0105C": pop_nonhispanic_white
-  "DP1_0106C": pop_nonhispanic_black
-  "DP1_0107C": pop_nonhispanic_nativeam
-  "DP1_0108C": pop_nonhispanic_asian
-  "DP1_0109C": pop_nonhispanic_hipacific
-  "DP1_0110C": pop_nonhispanic_other
-  "DP1_0111C": pop_nonhispanic_multi
+  "DP1_0105C": pop_nonhisp_white
+  "DP1_0106C": pop_nonhisp_black
+  "DP1_0107C": pop_nonhisp_nativeam
+  "DP1_0108C": pop_nonhisp_asian
+  "DP1_0109C": pop_nonhisp_hipacific
+  "DP1_0110C": pop_nonhisp_other
+  "DP1_0111C": pop_nonhisp_multi
 
   # RELATIONSHIP
   "DP1_0113C": pop_household
