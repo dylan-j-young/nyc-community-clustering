@@ -159,6 +159,37 @@ def get_local_subregion(gdf : gpd.GeoDataFrame,
 
     return( local_tracts, borough_tracts )
 
+def CLR(X, pseudocount=1e-5):
+    """ 
+    Performs a centered log-ratio (CLR) transformation on an array-like which is assumed to represent compositional data (each row's entries sum to a a constant value, normalized to 1). 
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input compositional data (rows sum to a constant).
+
+    pseudocount : float, optional
+        Converts 0 values to this to avoid dividing by 0. Recommended to input a small value that is not much smaller than the smallest possible nonzero value. Default is 1e-5.
+    
+    Returns
+    -------
+    X_clr : np.ndarray, shape (n_samples, n_features)
+        CLR-transformed data.
+    """
+    # Normalize by sum of first row
+    total = X[0].sum()
+    X = X / total
+
+    # Clip with pseudocount and 1
+    X = np.clip(X, pseudocount, 1)
+
+    # Calculate geometric mean and CLR
+    log_gm = np.mean(np.log(X), axis=1, keepdims=True)
+    X_clr = np.log(X) - log_gm
+
+    return(X_clr)
+
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt

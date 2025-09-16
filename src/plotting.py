@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -184,6 +185,57 @@ def plot_local_subregion(local_tracts, borough_tracts):
                    )
     
     return( fig, ax )
+
+def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False):
+    """ 
+    Given a set of eigenvectors from pca.components_,
+    plot the relative weights of each axis in a bar plot, defined as the magnitude squared of the eigenvector components along each axis (possibly signed).
+
+    Parameters
+    ----------
+    pca_components : np.ndarray, shape (n_eigs, n_cols)
+        Array-like of PCA components (eigenvectors of the covariance matrix).
+
+    cols : np.ndarray or list
+        Names of the different columns.
+
+    bar_width : float, optional
+        Sets the width of each bar (each column is spaced apart by 1). Default is 0.1.
+
+    signed_prob : bool, optional
+        Sets whether to plot the bars as strictly positive weights or to also plot the weights with a relative sign. Defualt is False.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Params
+    intrabar_width = 0
+    n_comps = len(cols)
+
+    # Make plot
+    fig, ax = plt.subplots(figsize=(8,6))
+
+    # Plot bars
+    x = np.arange(n_comps)
+    for i, component in enumerate(pca_components):
+        offset = (-(n_comps-1)/2 + i) * (bar_width+intrabar_width)
+        sign_corr = np.sign(component)/np.abs(component) \
+            if signed_prob else 1
+        ax.bar(x + offset, sign_corr*component**2, 
+               width = bar_width,
+               label=f"eig{i}")
+    
+    ax.set_xticks(x, cols, fontsize=8)
+    ax.set_ylim((-1,1) if signed_prob else (0,1))
+    ax.grid()
+    ax.legend()
+
+    return(fig, ax)
 
 if __name__ == "__main__":
     from src import utils
