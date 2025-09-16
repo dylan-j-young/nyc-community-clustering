@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from scipy.spatial import KDTree
+from libpysal.weights import Rook, Queen
 
 import os
 import random
@@ -100,7 +101,7 @@ def get_local_subregion(gdf : gpd.GeoDataFrame,
     Parameters
     ----------
     gdf : gpd.GeoDataFrame
-        Input dataset (assumed of NYC census tracts)
+        Input dataset (assumed to be NYC census tracts)
     
     k : int, optional
         The number of tracts to pull into a subregion. Defualt is 100.
@@ -189,6 +190,38 @@ def CLR(X, pseudocount=1e-5):
 
     return(X_clr)
 
+def contiguity_matrix(gdf, type="queen"):
+    """ 
+    Given a GeoDataFrame of polygons (e.g., census tracts), generates a contiguity matrix using the libpysal library.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset. Must have a geometry column with polygon information.
+
+    type : str, optional
+        Type of contiguity to calculate ("rook" or "queen"). Default is "queen".
+    
+    Returns
+    -------
+    w : np.ndarray, shape (n_rows, n_rows)
+        The contiguity matrix. wij = 1 if tract i and tract j are (rook- or queen-) contiguous and 0 otherwise, with diagonal entries 0.
+
+    ids : np.ndarray, shape (n_rows)
+        Array of indices corresponding to the rows and columns of the contiguity matrix.
+    """
+    # Generate matrix
+    if type == "queen":
+        W = Queen.from_dataframe(gdf, use_index=True)
+    elif type == "rook":
+        W = Rook.from_dataframe(gdf, use_index=True)
+    else:
+        raise
+    
+    # Clean up and return information
+    w, ids = W.full()
+    ids = np.array(ids).flatten()
+    return( w, ids )
 
 if __name__ == "__main__":
     from src import plotting
