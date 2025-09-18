@@ -146,6 +146,53 @@ def fetch_2020_demographic_profile():
     
     return(raw_data)
 
+def fetch_2023_acs_5yr_select():
+    """ 
+    Calls the US Census API with a GET query for the 2023 ACS (5-year), grabbing only the variables specified in config.CENSUS_VARS, for each census tract in NYC. Saves the returned data as a JSON file in config.ACS5YR2023_RAW.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    raw_data : list
+        The raw data returned from the GET request and saved to file
+    """
+    # Get API key from .env (user-specific local secrets)
+    load_dotenv()
+    API_KEY = os.getenv("CENSUS_API_KEY")
+    
+    # Parameters of Census API query
+    year = 2023
+    source = "acs/acs5" # American Community Survey
+    dataset = "profile" # Demographic Profile
+    vars_to_get = list( config.CENSUS_VARS["2023_acs_5yr_select"].keys() )
+    cols = ",".join(["GEO_ID"] + vars_to_get) # GEO_ID and all of the DP
+    borough_fips = list(config.FIPS_DICT.keys())
+    borough_codes = [fips[2:] for fips in borough_fips]
+    boroughs = ",".join(borough_codes)
+    state = "36" # NY
+    tracts = "*" # all
+
+    # Construct URL query
+    url = f"https://api.census.gov/data/{year}/{source}/{dataset}" \
+        + f"?get={cols}" \
+        + f"&for=tract:{tracts}" \
+        + f"&in=county:{boroughs}" \
+        + f"&in=state:{state}" \
+        + f"&key={API_KEY}"
+
+    # Send GET request and retrieve a JSON-formatted response
+    response = requests.get(url)
+    print(f"GET request status: {response.status_code}")
+    raw_data = response.json()
+
+    # Write to file
+    with open(config.ACS5YR2023_RAW, "w") as f:
+        json.dump(raw_data, f)
+    
+    return(raw_data)
+
 def clean_2020_demographic_profile():
     """
     Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns.
@@ -192,6 +239,57 @@ def clean_2020_demographic_profile():
 
     # Export cleaned DataFrame to file
     df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
+
+    return( df )
+
+def clean_2023_acs_5yr_select():
+    """
+    Performs an initial cleaning of the 2023 ACS 5yr data.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    df_clean : pd.DataFrame
+        The cleaned dataframe saved to file.
+    """
+    # Load raw data from file and convert to a dataframe
+    with open(config.ACS5YR2023_RAW, "r") as f:
+        raw_data = json.load(f)
+    df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+
+    # Clean GEO_ID, rename to GEOID, and set as index
+    df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
+    df = df.rename(columns={"GEO_ID": "GEOID"})
+    df = df.set_index("GEOID")
+
+    # Remove end columns that are redundant
+    df = df.drop(columns=["state","county","tract"])
+
+    # Rename columns
+    census_var_renames = config.CENSUS_VARS["2023_acs_5yr_select"]
+    df = df.rename( columns = census_var_renames )
+
+    # Convert strings of numbers to numbers
+    for col in df:
+        df[col] = pd.to_numeric(df[col], errors="raise")
+
+    # Remove rows with no people
+    df_2020dp = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
+    df = df[df.index.isin(df_2020dp.index)]
+
+    # Drop columns with margins of error
+    all_cols = df.columns.to_numpy()
+    margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
+    df = df.drop(columns=margin_cols)
+
+    # Label unfilled entries with nan
+    df = df.replace(-888888888, np.nan)
+    df = df.replace(-666666666, np.nan)
+
+    # Export cleaned DataFrame to file
+    df.to_parquet(config.ACS5YR2023_CLEAN)
 
     return( df )
 

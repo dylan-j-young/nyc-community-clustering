@@ -73,6 +73,10 @@ AREAWATER = [(
 DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
 DECENNIAL2020_DP_CLEAN = INTERIM_DATA_DIR / "decennial2020_dp_clean.parquet"
 
+# 2023 ACS (5-year)
+ACS5YR2023_RAW = RAW_DATA_DIR / "acs5yr2023.json"
+ACS5YR2023_CLEAN = INTERIM_DATA_DIR / "acs5yr2023_clean.parquet"
+
 ####
 # CENSUS VARIABLES
 ####

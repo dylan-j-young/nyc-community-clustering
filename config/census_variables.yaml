@@ -175,3 +175,20 @@
   # HOUSING TENURE
   "DP1_0159C": housing_owneroccupied
   "DP1_0160C": housing_renteroccupied
+
+# Selected entries from the American Community Survey (ACS) 2023 (5-year)
+2023_acs_5yr_select:
+  "DP02_0080PE": pct_sameresidence1yr
+  "DP02_0080PM": err_pct_sameresidence1yr
+  "DP02_0113PE": pct_englishonlyhome
+  "DP02_0113PM": err_pct_englishonlyhome
+  "DP03_0021PE": pct_commute_transit
+  "DP03_0021PM": err_pct_commute_transit
+  "DP03_0022PE": pct_commute_walk
+  "DP03_0022PM": err_pct_commute_walk
+  "DP03_0062E": medianhouseholdincome
+  "DP03_0062M": err_medianhouseholdincome
+  "DP03_0128PE": pct_incomebelowpoverty
+  "DP03_0128PM": err_pct_incomebelowpoverty
+  "DP04_0089PE": medianhomevalue
+  "DP04_0089PM": err_medianhomevalue  
