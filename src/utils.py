@@ -223,6 +223,53 @@ def contiguity_matrix(gdf, type="queen"):
     ids = np.array(ids).flatten()
     return( w, ids )
 
+def normalized_neighbor_weights(gdf):
+    """
+    Given a GeoDataFrame of polygons with common boundaries, returns a weights matrix w, where w[i][j] is the length of the border between tracts i and j (integer-indexed) divided by the total length of common borders of tract i.
+
+    Warning! While the absolute border length matrix is symmetric, this normalized matrix is NOT. This is because tracts i and j may have different total border lengths, so the same border might be a larger fraction of the total length for one over the other.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset. Must have a geometry column with polygon information.
+    
+    Returns
+    -------
+    w : np.ndarray, shape (n_rows, n_rows)
+        The weights matrix. wij = border_length(i,j) / total_common_border_length(i).
+
+    ids : np.ndarray, shape (n_rows)
+        Array of indices in the original GeoDataFrame corresponding to the rows and columns of the contiguity matrix.
+    """
+    # Get rook neighbors
+    rook, ids = contiguity_matrix(gdf, type="rook")
+
+    # Set up weights matrix
+    n = rook.shape[0]
+    w = np.zeros((n,n))
+    index_of_id = {ids[i]: i for i in range(n)}
+
+    # Iterate over polygons
+    for i in range(n):
+        # Geometry of polygon i
+        geometry0 = gdf.loc[ids[i]]["geometry"]
+
+        # Geometry of neighbors j of polygon i
+        id_neighbors = ids[ rook[i] == 1 ]
+        geometry_neighbors = gdf.loc[id_neighbors]["geometry"]
+
+        # Calculate normalized border lengths
+        borders = geometry0.intersection(geometry_neighbors)
+        norm_border_lengths = borders.length / (borders.length.sum())
+
+        # Plug in values into spot (i, jk) for the kth neighbor of i
+        js = [index_of_id[id] for id in id_neighbors]
+        for k, jk in enumerate(js):
+            w[i][jk] = norm_border_lengths.iloc[k]
+    
+    return( w, ids )
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt
