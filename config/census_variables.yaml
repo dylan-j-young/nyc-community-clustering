@@ -190,5 +190,5 @@
   "DP03_0062M": err_medianhouseholdincome
   "DP03_0128PE": pct_incomebelowpoverty
   "DP03_0128PM": err_pct_incomebelowpoverty
-  "DP04_0089PE": medianhomevalue
-  "DP04_0089PM": err_medianhomevalue  
+  "DP04_0089E": medianhomevalue
+  "DP04_0089M": err_medianhomevalue  

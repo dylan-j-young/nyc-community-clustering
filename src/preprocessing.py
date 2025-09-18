@@ -234,8 +234,8 @@ def clean_2020_demographic_profile():
     for col in df:
         df[col] = pd.to_numeric(df[col], errors="raise")
 
-    # Remove rows with no people
-    df = df[df["pop"] > 0]
+    # Remove rows with fewer than 200 people
+    df = df[df["pop"] > 200]
 
     # Export cleaned DataFrame to file
     df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
@@ -275,7 +275,7 @@ def clean_2023_acs_5yr_select():
     for col in df:
         df[col] = pd.to_numeric(df[col], errors="raise")
 
-    # Remove rows with no people
+    # Remove rows with fewer than 200 people
     df_2020dp = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
     df = df[df.index.isin(df_2020dp.index)]
 
@@ -314,9 +314,9 @@ if __name__ == "__main__":
 
     pass
 
-def remove_unpopulated_tracts():
+def remove_lowpop_tracts():
     """
-    Reads in the NYC census tracts as a GeoDataFrame and cleaned data from the 2020 Census Demographic Profile. Keeps only tracts that are also in the demographic profile and have a nonzero number of people.
+    Reads in the NYC census tracts as a GeoDataFrame and cleaned data from the 2020 Census Demographic Profile. Keeps only tracts that are also in the demographic profile and have fewer than 200 people.
 
     Parameters
     ----------
