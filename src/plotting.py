@@ -1,7 +1,12 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+
+import jenkspy
+
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.colors as mplcolors
 import contextily as ctx
 
 from src import config
@@ -237,21 +242,168 @@ def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False):
 
     return(fig, ax)
 
+def discrete_nonuniform_colormap(name, boundaries, colors, N=256):
+    """ 
+    Returns a mpl.colors.LinearSegmentedColormap with N segments, separated into k = len(colors) regions bounded by the k+1 values in boundaries (assumed from 0 to 1).
+
+    The LinearSegmentedColormap is generated using a dict with four keys: "red", "green", "blue", and "alpha". The values are a list of 3-tuples of the form (x_i, y0_i, y1_i), where x monotonically increases from 0 to 1 (the interpolation endpoints), y0_i is the right color value endpoint of the previous segment, and y1_i is the left color value endpoint of the next segment. To generate the discrete colormap with nonuniform boundaries, we define breakpoints set by boundaries and set y0_i = y1_{i-1} to get the colormap to interpolate between two equal endpoints within each segment.
+
+    Parameters
+    ----------
+    name : str
+        The desired name of this colormap.
+    
+    boundaries : list or np.array, shape k+1
+        The boundaries of the k color regions. The first element must be 0, and the last must be 1. Values in boundaries should monotonically increase.
+
+    colors : list or np.array
+        The k colors. Each color should be a 3 or 4 element tuple representing (r,g,b) or (r,g,b,a) values, normalized from 0 to 1.
+    
+    N : int, optional
+        The number of segments for the LinearSegmentedColormap. Defualt is 256.
+
+    Returns
+    -------
+    cmap : mpl.colors.LinearSegmentedColormap
+        The desired colormap. 
+    """
+    # Initialize vars
+    k = len(colors)
+    rlist, glist, blist, alist = [], [], [], []
+
+    # Pull out r, g, b, a lists from the list of color tuples
+    r, g, b, a = mplcolors.to_rgba_array(colors).T
+
+    # Enumerate over each boundary point
+    for i, bdy in enumerate(boundaries):
+        # Define interpolation indices to form flat segments. First j0 and last j1 do nothing.
+        if i == 0:
+            j0, j1 = 0, 0
+        elif i == k:
+            j0, j1 = k-1, k-1
+        else:
+            j0, j1 = i-1, i
+        
+        # Add interpolation endpoint to each list
+        rlist.append((bdy, r[j0], r[j1]))
+        glist.append((bdy, g[j0], g[j1]))
+        blist.append((bdy, b[j0], b[j1]))
+        alist.append((bdy, a[j0], a[j1]))
+    
+    # Construct the dict and then make the colormap
+    cdict = {"red": rlist,
+             "green": glist,
+             "blue": blist,
+             "alpha": alist}
+    cmap = mplcolors.LinearSegmentedColormap(name, cdict, N=N)
+
+    return( cmap )
+
+def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
+    """ 
+    Given a column of data and a set of tracts, construct a choropleth map with breaks defined using the Jenks natural breaks algorithm (1D K-means clustering). Colors are evenly spaced from white to the value specified by `color`.
+
+    Parameters
+    ----------
+    col : pd.Series or np.ndarray
+        Array-like of the data to plot. Assumed to be in the proper order to correlate with the tracts GeoDataFrame.
+
+    tracts : gpd.GeoDataFrame
+        The various tracts to plot.
+
+    n_classes : int, optional
+        The number of color classes to plot in the choropleth. Defualt is 6.
+
+    color : tuple, optional
+        The (r,g,b) or (r,g,b,a) values (from 0 to 1) of the brightest color to plot. Default is mpl.colors.Red(1.0).
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Find Jenks natural breaks (cluster 1D data into nc clusters)
+    nc = n_classes
+    jenks_bdys = np.array( jenkspy.jenks_breaks(col, n_classes=nc) )
+    
+    # Normalize boundaries to go from 0 to 1 for LinearSegmentedColormap
+    vmin, vmax = col.min(), col.max()
+    jenks_bdys_norm = (jenks_bdys - vmin) / (vmax - vmin) # length nc+1
+
+    # Generate nc colors from white to color
+    base_cmap = mplcolors.LinearSegmentedColormap.from_list("white_to_color_cmap", ["white", color])
+    colors = [base_cmap((i+1) / nc) for i in range(nc)] # length nc
+
+    # Get quantized colormap and normalization
+    cmap_quant = discrete_nonuniform_colormap("test", jenks_bdys_norm, colors)
+    norm = mplcolors.Normalize(vmin=vmin, vmax=vmax)
+
+    fig, ax = plt.subplots(figsize=(10,8))
+
+    merged = tracts.copy()
+    merged = merged.join(col)
+
+    # Convert to Web Mercator
+    merged = merged.to_crs(config.WEB_MERCATOR_EPSG)
+    merged.plot(
+        column=col.name,
+        cmap=cmap_quant,
+        norm=norm,
+        linewidth=0,
+        ax=ax
+    )
+
+    # Improve visualization
+    ax.set_title(col.name, fontsize=12)
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=ctx.providers.CartoDB.Positron,
+                    reset_extent=True
+                    )
+
+    # Colorbar
+    sm = mpl.cm.ScalarMappable(cmap=cmap_quant, norm=norm)
+    sm._A = []
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
+
+    # force ticks at the actual quantile edges
+    cbar.set_ticks(list(jenks_bdys))
+    cbar.ax.set_yticklabels([f"{utils.pretty_round(v,3)}" for v in list(jenks_bdys)])
+    # cbar.set_label(f"Quantile bins")
+
+    fig.tight_layout()
+
+    return( fig, ax )
+
 if __name__ == "__main__":
     from src import utils
 
     # Get NYC census tracts
     nyc_tracts = gpd.read_parquet(config.TRACTS_CLEAN)
 
-    # Test plot_local_subregion()
-    local_tracts, borough_tracts = utils.get_local_subregion(
-        nyc_tracts, seed=42
-        )
-    fig, ax = plot_local_subregion(local_tracts, borough_tracts)
-    plt.show()
+    # # Test plot_local_subregion()
+    # local_tracts, borough_tracts = utils.get_local_subregion(
+    #     nyc_tracts, seed=42
+    #     )
+    # fig, ax = plot_local_subregion(local_tracts, borough_tracts)
+    # plt.show()
 
     # # Test plot_tracts()
     # tract_id = "36061024100"
     # tract = nyc_tracts.loc[tract_id]
     # fig, ax = plot_tracts(tract, zoom_adjust=1)
     # plt.show()
+
+    # Test plot_choropleth()
+    decennial2020_dp = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
+    col = pd.Series(decennial2020_dp["pop_hispanic"]/decennial2020_dp["pop"],
+                    index=decennial2020_dp.index, name="pct_hispanic")
+    fig, ax = plot_choropleth(col, nyc_tracts)
+    plt.show()

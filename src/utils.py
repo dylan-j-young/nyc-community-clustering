@@ -270,6 +270,15 @@ def normalized_neighbor_weights(gdf):
     
     return( w, ids )
 
+def pretty_round(x, p):
+    """ 
+    Given a number x and number of significant digits p, returns a nicely rounded version of x. Only works on single numbers (not numpy arrays).
+    """
+    order_of_magnitude = round(np.ceil(np.log10(x)))
+    y = x * 10**(-order_of_magnitude+p)
+    x_prettyround = round(y) * 10**(order_of_magnitude-p)
+    return( x_prettyround )
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt

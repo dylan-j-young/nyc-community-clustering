@@ -37,7 +37,8 @@ BOROUGHS = ["The Bronx",
             "Queens",
             "Staten Island"]
 
-# # Distance
+# Distance
+METERS_PER_MILE = 1609.344
 # MEAN_EARTH_RADIUS = 6371 * 1000 # m
 # KM = 1000 # m
 # DEGREE_TO_M = np.pi/180 * MEAN_EARTH_RADIUS
