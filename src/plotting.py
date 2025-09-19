@@ -299,7 +299,7 @@ def discrete_nonuniform_colormap(name, boundaries, colors, N=256):
 
     return( cmap )
 
-def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
+def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds):
     """ 
     Given a column of data and a set of tracts, construct a choropleth map with breaks defined using the Jenks natural breaks algorithm (1D K-means clustering). Colors are evenly spaced from white to the value specified by `color`.
 
@@ -314,8 +314,8 @@ def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
     n_classes : int, optional
         The number of color classes to plot in the choropleth. Defualt is 6.
 
-    color : tuple, optional
-        The (r,g,b) or (r,g,b,a) values (from 0 to 1) of the brightest color to plot. Default is mpl.colors.Red(1.0).
+    cmap : mpl.colors.Colormap, optional
+        The (continuous) colormap to pull colors from. Default is mpl.colors.Red.
     
     Returns
     -------
@@ -327,21 +327,22 @@ def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
     """
     # Find Jenks natural breaks (cluster 1D data into nc clusters)
     nc = n_classes
-    jenks_bdys = np.array( jenkspy.jenks_breaks(col, n_classes=nc) )
+    jenks_bdys = np.array( 
+        jenkspy.jenks_breaks(col[col.notna()], n_classes=nc)
+    )
     
     # Normalize boundaries to go from 0 to 1 for LinearSegmentedColormap
     vmin, vmax = col.min(), col.max()
     jenks_bdys_norm = (jenks_bdys - vmin) / (vmax - vmin) # length nc+1
 
-    # Generate nc colors from white to color
-    base_cmap = mplcolors.LinearSegmentedColormap.from_list("white_to_color_cmap", ["white", color])
-    colors = [base_cmap((i+1) / nc) for i in range(nc)] # length nc
+    # Generate nc colors from base colormap
+    colors = [cmap((i+1) / nc) for i in range(nc)] # length nc
 
     # Get quantized colormap and normalization
     cmap_quant = discrete_nonuniform_colormap("test", jenks_bdys_norm, colors)
     norm = mplcolors.Normalize(vmin=vmin, vmax=vmax)
 
-    fig, ax = plt.subplots(figsize=(10,8))
+    fig, ax = plt.subplots(figsize=(8,6))
 
     merged = tracts.copy()
     merged = merged.join(col)
@@ -353,7 +354,17 @@ def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
         cmap=cmap_quant,
         norm=norm,
         linewidth=0,
-        ax=ax
+        ax=ax,
+        missing_kwds={
+            "color": "#505050",  # Color for NaN values
+            "hatch": "////",  # Texture to the polygons for clarity
+            "linewidth": 0,
+            "label": "No Data"  # Label for NaN values in the legend
+        },
+        legend=True,
+        legend_kwds={
+            "ticks": list(jenks_bdys)
+        }
     )
 
     # Improve visualization
@@ -367,16 +378,6 @@ def plot_choropleth(col, tracts, n_classes = 6, color = mpl.cm.Reds(1.0)):
                     source=ctx.providers.CartoDB.Positron,
                     reset_extent=True
                     )
-
-    # Colorbar
-    sm = mpl.cm.ScalarMappable(cmap=cmap_quant, norm=norm)
-    sm._A = []
-    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
-
-    # force ticks at the actual quantile edges
-    cbar.set_ticks(list(jenks_bdys))
-    cbar.ax.set_yticklabels([f"{utils.pretty_round(v,3)}" for v in list(jenks_bdys)])
-    # cbar.set_label(f"Quantile bins")
 
     fig.tight_layout()
 
