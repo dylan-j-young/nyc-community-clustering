@@ -259,14 +259,16 @@ def normalized_neighbor_weights(gdf):
         id_neighbors = ids[ rook[i] == 1 ]
         geometry_neighbors = gdf.loc[id_neighbors]["geometry"]
 
-        # Calculate normalized border lengths
-        borders = geometry0.intersection(geometry_neighbors)
-        norm_border_lengths = borders.length / (borders.length.sum())
+        # Must have at least one neighbor to attempt normalization
+        if len(geometry_neighbors) > 0:
+            # Calculate normalized border lengths
+            borders = geometry0.intersection(geometry_neighbors)
+            norm_border_lengths = borders.length / (borders.length.sum())
 
-        # Plug in values into spot (i, jk) for the kth neighbor of i
-        js = [index_of_id[id] for id in id_neighbors]
-        for k, jk in enumerate(js):
-            w[i][jk] = norm_border_lengths.iloc[k]
+            # Plug in values into spot (i, jk) for the kth neighbor of i
+            js = [index_of_id[id] for id in id_neighbors]
+            for k, jk in enumerate(js):
+                w[i][jk] = norm_border_lengths.iloc[k]
     
     return( w, ids )
 
@@ -278,6 +280,131 @@ def pretty_round(x, p):
     y = x * 10**(-order_of_magnitude+p)
     x_prettyround = round(y) * 10**(order_of_magnitude-p)
     return( x_prettyround )
+
+def interpolate_from_neighbors(gdf, col, remainder_fill=0, verbose=False):
+    """ 
+    Given a GeoDataFrame of polygons and an associated data column with nan values, fill in nan values using a weighted interpolation based on the lengths of borders with neighboring polygons.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset. Must have a geometry column with polygon information.
+    
+    col : pd.Series
+        A data column (Series) with GEOIDs correlated with the GeoDataFrame.
+
+    remainder_fill : float or int, optional
+        Value to fill any remaining nan entries after interpolation. Default is 0.
+    
+    verbose : bool, optional
+        If verbose is True, the function outputs status messages about the interpolation. Default is False.
+    
+    Returns
+    -------
+    interpolated_col : pd.Series
+        The data column with nan values interpolated or filled in.
+    """
+    # Get neighbor weights matrix and id lookup dict once
+    neighbor_weights, ids = normalized_neighbor_weights(gdf)
+    id_to_iloc = {ids[i]: i for i in range(len(gdf))}
+
+    # Neighbor weights are potentially in a different order, so reorder col
+    original_index = col.index
+    col = col.reindex(ids)
+
+    # Initial status message
+    if verbose:
+        nan_count = len( col[col.isna()] )
+        total_count = len( col )
+        print(f"Starting interpolation with {nan_count} NaN entries out of {total_count} total rows:")
+
+    # Recursively call interpolation function
+    threshold0, dthresh = 1.0, 0.05
+    interpolated_col = _recurse_interpolation(col, neighbor_weights, 
+                               id_to_iloc, threshold0, dthresh, verbose)
+    
+    # Check if there are any nans left
+    remainder_nan_count = len(interpolated_col[interpolated_col.isna()])
+    if remainder_nan_count > 0:
+        # If so, fill remaining nan cells with remainder_fill and notify
+        interpolated_col = interpolated_col.fillna(remainder_fill)
+        
+        if verbose:
+            print(f"Unable to interpolate {remainder_nan_count} rows; filled with {remainder_fill} instead.")
+    
+    # Reorder col to match original
+    interpolated_col = interpolated_col.reindex(original_index)
+    return( interpolated_col )
+
+
+def _recurse_interpolation(col, neighbor_weights,
+                           id_to_iloc, threshold, dthresh, verbose):
+    """ 
+    A helper function for interpolate_from_neighbors(), not meant to be called separately.
+    """
+
+    # Get integer locations of all nan values in col
+    nan_rows = col[col.isna()]
+    ilocs_nan = [id_to_iloc[nan_idx] for nan_idx in nan_rows.index]
+
+    # If no nans, return the col as-is
+    if len(nan_rows) == 0:
+        if verbose:
+            print("Successfully interpolated all tracts!")
+        return( col )
+
+    # Remove weights of neighbors that are nan
+    notnan_projector = col.notna().astype(int).to_numpy()[None,:]
+    notnan_neighbor_ws = neighbor_weights * notnan_projector
+
+    # Fraction of each border that is not nan (as a numpy array)
+    frac_border_notnan = notnan_neighbor_ws.sum(axis=1)
+
+    # Get all nan rows and sort descending by frac_border_notnan
+    rows_in_interpolation_order = pd.Series(
+        index = nan_rows.index,
+        data = frac_border_notnan[ilocs_nan]
+    ).sort_values(ascending=False)
+
+    # Interpolate rows one by one in order of frac_border_notnan
+    col_nanremoved = col.fillna(0)
+    for k, row_k in enumerate(rows_in_interpolation_order):
+        # Stop interpolating when frac_border_notnan goes below threshold
+        if row_k < threshold:
+            break
+
+        # Get integer location of the kth row
+        geoid = rows_in_interpolation_order.index[k]
+        iloc = id_to_iloc[geoid]
+        
+        # Interpolate using an average weighted by notnan_neighbor_ws
+        interpolated_value = np.average(
+            col_nanremoved, weights=notnan_neighbor_ws[iloc]
+        )
+        col[geoid] = interpolated_value
+
+        # Increment k one more time if all rows successfully filled
+        if (k+1 == len(rows_in_interpolation_order)):
+            k += 1
+
+    # If no more tracts can be interpolated at threshold=0, give up
+    if (threshold < 0) and (k == 0):
+        return( col )
+
+    # Print recursion status messages
+    if verbose:
+        if k == 0:
+            print(f"Reducing threshold from {threshold:.2f} to {(threshold-dthresh):.2f}.")
+            threshold -= dthresh
+        elif k == 1:
+            print(f"Interpolated {k} tract at a threshold of {threshold:.2f}.")
+        else:
+            print(f"Interpolated {k} tracts at a threshold of {threshold:.2f}.")
+
+    # Continue recursion
+    return( _recurse_interpolation(col, neighbor_weights,
+                                   id_to_iloc, threshold, dthresh, verbose)
+    )
 
 if __name__ == "__main__":
     from src import plotting
