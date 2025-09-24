@@ -234,9 +234,6 @@ def clean_2020_demographic_profile():
     for col in df:
         df[col] = pd.to_numeric(df[col], errors="raise")
 
-    # Remove rows with fewer than 200 people
-    df = df[df["pop"] > 200]
-
     # Export cleaned DataFrame to file
     df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
 
@@ -275,10 +272,6 @@ def clean_2023_acs_5yr_select():
     for col in df:
         df[col] = pd.to_numeric(df[col], errors="raise")
 
-    # Remove rows with fewer than 200 people
-    df_2020dp = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
-    df = df[df.index.isin(df_2020dp.index)]
-
     # Drop columns with margins of error
     all_cols = df.columns.to_numpy()
     margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
@@ -313,33 +306,3 @@ if __name__ == "__main__":
     # decennial2020_dp_clean = clean_2020_demographic_profile()
 
     pass
-
-def remove_lowpop_tracts():
-    """
-    Reads in the NYC census tracts as a GeoDataFrame and cleaned data from the 2020 Census Demographic Profile. Keeps only tracts that are also in the demographic profile and have fewer than 200 people.
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame of census tracts in NYC with the columns:
-        GEOID : str, 11-digit GEOID for tract
-        BOROUGH : str, representing the name of the borough
-        TRACT : str, Census tract number
-        AREA : int64, land area of tract in square meters
-        LAT : str, latitude of the tract's internal point
-        LONG : str, longitude of the tract's internal point
-        geometry : Polygon, representing the tract in WGS84
-    """
-    gdf = gpd.read_parquet(config.TRACTS_CLEAN)
-    df = pd.read_parquet(config.DECENNIAL2020_DP_CLEAN)
-
-
-    gdf = gdf[ gdf.index.isin(df.index) ]
-    
-    # Export cleaned GeoDataFrame
-    gdf.to_parquet(config.TRACTS_CLEAN)
-
-    return( gdf )

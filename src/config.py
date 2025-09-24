@@ -64,6 +64,7 @@ TRACTS_RAW = (
     / "tl_2024_36_tract.shp"
 )
 TRACTS_CLEAN = INTERIM_DATA_DIR / "tracts_clean.parquet"
+TRACTS_HIGHPOP = INTERIM_DATA_DIR / "tracts_highpop.parquet"
 
 # Shapefiles: Water area polygons for each county/borough
 AREAWATER = [(
@@ -76,10 +77,12 @@ AREAWATER = [(
 # 2020 Census Demographic Profile
 DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
 DECENNIAL2020_DP_CLEAN = INTERIM_DATA_DIR / "decennial2020_dp_clean.parquet"
+DECENNIAL2020_DP_HIGHPOP = INTERIM_DATA_DIR / "decennial2020_dp_highpop.parquet"
 
 # 2023 ACS (5-year)
 ACS5YR2023_RAW = RAW_DATA_DIR / "acs5yr2023.json"
 ACS5YR2023_CLEAN = INTERIM_DATA_DIR / "acs5yr2023_clean.parquet"
+ACS5YR2023_HIGHPOP = INTERIM_DATA_DIR / "acs5yr2023_highpop.parquet"
 
 ####
 # CENSUS VARIABLES
