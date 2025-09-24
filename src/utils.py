@@ -387,15 +387,17 @@ def _recurse_interpolation(col, neighbor_weights,
         if (k+1 == len(rows_in_interpolation_order)):
             k += 1
 
-    # If no more tracts can be interpolated at threshold=0, give up
-    if (threshold < 0) and (k == 0):
-        return( col )
+    # If no tracts were interpolated, reduce threshold (or give up if < 0)
+    if k == 0:
+        if threshold < 0:
+            return( col )
+        else:
+            threshold -= dthresh
 
     # Print recursion status messages
     if verbose:
         if k == 0:
-            print(f"Reducing threshold from {threshold:.2f} to {(threshold-dthresh):.2f}.")
-            threshold -= dthresh
+            print(f"Reducing threshold from {threshold+dthresh:.2f} to {threshold:.2f}.")
         elif k == 1:
             print(f"Interpolated {k} tract at a threshold of {threshold:.2f}.")
         else:
