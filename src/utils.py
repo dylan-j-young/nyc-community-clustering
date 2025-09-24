@@ -370,7 +370,7 @@ def _recurse_interpolation(col, neighbor_weights,
     col_nanremoved = col.fillna(0)
     for k, row_k in enumerate(rows_in_interpolation_order):
         # Stop interpolating when frac_border_notnan goes below threshold
-        if row_k < threshold:
+        if (row_k < threshold) or (row_k <= 0):
             break
 
         # Get integer location of the kth row
