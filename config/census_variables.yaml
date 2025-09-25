@@ -190,6 +190,12 @@
   "DP03_0062M": err_medianhouseholdincome
   "DP03_0128PE": pct_incomebelowpoverty
   "DP03_0128PM": err_pct_incomebelowpoverty
+  "DP04_0007PE": pct_housing_1unitdetached
+  "DP04_0007PM": err_pct_housing_1unitdetached
+  "DP04_0008PE": pct_housing_1unitattached
+  "DP04_0008PM": err_pct_housing_1unitattached
+  "DP04_0013PE": pct_housing_20plusunits
+  "DP04_0013PM": err_pct_housing_20plusunits
   "DP04_0089E": medianhomevalue
   "DP04_0089M": err_medianhomevalue  
   "DP04_0134E": medianrent
