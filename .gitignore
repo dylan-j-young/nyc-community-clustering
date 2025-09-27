@@ -13,6 +13,9 @@
 # Data (memory-intensive)
 data/
 
+# Models (for now)
+models/
+
 # Info (manuals, etc.)
 info/
 
