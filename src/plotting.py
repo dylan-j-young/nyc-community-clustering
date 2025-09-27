@@ -191,7 +191,7 @@ def plot_local_subregion(local_tracts, borough_tracts):
     
     return( fig, ax )
 
-def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False):
+def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False, **kwargs):
     """ 
     Given a set of eigenvectors from pca.components_,
     plot the relative weights of each axis in a bar plot, defined as the magnitude squared of the eigenvector components along each axis (possibly signed).
@@ -221,21 +221,23 @@ def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False):
     # Params
     intrabar_width = 0
     n_comps = len(cols)
+    n_bars = pca_components.shape[0]
 
     # Make plot
-    fig, ax = plt.subplots(figsize=(8,6))
+    figsize = (8,6) if not ("figsize" in kwargs) else kwargs["figsize"]
+    fig, ax = plt.subplots(figsize=figsize)
 
     # Plot bars
     x = np.arange(n_comps)
     for i, component in enumerate(pca_components):
-        offset = (-(n_comps-1)/2 + i) * (bar_width+intrabar_width)
+        offset = (-(n_bars-1)/2 + i) * (bar_width+intrabar_width)
         sign_corr = np.sign(component)/np.abs(component) \
             if signed_prob else 1
         ax.bar(x + offset, sign_corr*component**2, 
                width = bar_width,
                label=f"eig{i}")
     
-    ax.set_xticks(x, cols, fontsize=8)
+    ax.set_xticks(x, cols, fontsize=8, rotation=45, ha="right")
     ax.set_ylim((-1,1) if signed_prob else (0,1))
     ax.grid()
     ax.legend()
