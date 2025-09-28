@@ -3,6 +3,10 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from scipy.spatial import KDTree
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
 from libpysal.weights import Rook, Queen
 
 import os
@@ -336,7 +340,6 @@ def interpolate_from_neighbors(gdf, col, remainder_fill=0, verbose=False):
     interpolated_col = interpolated_col.reindex(original_index)
     return( interpolated_col )
 
-
 def _recurse_interpolation(col, neighbor_weights,
                            id_to_iloc, threshold, dthresh, verbose):
     """ 
@@ -407,6 +410,116 @@ def _recurse_interpolation(col, neighbor_weights,
     return( _recurse_interpolation(col, neighbor_weights,
                                    id_to_iloc, threshold, dthresh, verbose)
     )
+
+def _feature_r2(df_train, df_test, series_train, series_test):
+    """ 
+    Internal-facing function that essentially acts as a wrapper for scikit-learn's LinearRegression. Given a df and series with common indices, perform a regression on training values and return R2 for the test values.
+
+    Parameters
+    ----------
+    df_train : pd.DataFrame
+        Training values of the input dataset. All columns used in regression.
+    
+    df_test : pd.DataFrame
+        Test values of input dataset. 
+
+    series_train : pd.Series
+        Training values of the input Y series.
+
+    series_test : pd.Series
+        Test values of the input Y series.
+    
+    Returns
+    -------
+    r2 : float
+        The R2 value for the linear regression attempting to predict values in series_test using the data in df_test.
+    """
+    model = LinearRegression()
+    model.fit(df_train, series_train)
+    r2 = model.score(df_test, series_test)
+    return(r2)
+
+def get_internal_feature_r2s(df, test_size=0.2, random_state=None):
+    """ 
+    Given a DataFrame df, attempt to predict each column of values using a linear regression on all the other columns. Returns R2 values for each column in a list.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset.
+
+    test_size : float, optional
+        The fraction of rows used in the test dataset. Default is 0.2.
+    
+    random_state : float or None, optional
+        Random seed for the train-test split. If None, no random seed is supplied. Default is None.
+    
+    Returns
+    -------
+    r2s : pd.Series
+        A series with indices set by the columns of df and values set by the resulting R2s from the linear regression.
+    """
+    # scale features by z score
+    cols = df.columns.values
+    scaler = StandardScaler()
+    df_zscore = df.copy()
+    df_zscore[cols] = scaler.fit_transform(df_zscore[cols])
+
+    X_train, X_test = train_test_split(df_zscore, 
+                                       test_size=test_size,
+                                       random_state=random_state)
+
+    # For each attribute, get an r2 score
+    r2s = [
+        _feature_r2(
+            X_train.drop(columns=[col]), 
+            X_test.drop(columns=[col]),
+            X_train[col],
+            X_test[col]
+        ) for col in cols
+    ]
+
+    return(pd.Series(r2s, index=cols, name="R2"))
+
+def get_feature_r2s(df_X, df_Y, test_size=0.2, random_state=None):
+    """
+    Perform a linear regression on each of the columns in df_Y using the data in df_X (both DataFrames assumed to share common indices). Return a pd.Series object of R2 values for each column in df_Y.
+
+    Parameters
+    ----------
+    df_X : pd.DataFrame
+        Dataset used to predict values in df_Y
+
+    df_Y : pd.DataFrame
+        Dataset with potentially multiple columns, sharing indices with df_X.
+
+    test_size : float, optional
+        The fraction of rows used in the test dataset. Default is 0.2.
+
+    random_state : float or None, optional
+        Random seed for the train-test split. If None, no random seed is supplied. Default is None.
+    
+    Returns
+    -------
+    r2s : pd.Series
+        A series with indices set by the columns of df_Y and values set by the resulting R2s from the linear regression.
+    """
+    if isinstance(df_Y, pd.Series):
+        if df_Y.name is None:
+            df_Y.name = "Y"
+        df_Y = pd.DataFrame(df_Y)
+
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        df_X, df_Y, test_size=test_size, random_state=random_state
+    )
+
+    r2s = [
+        _feature_r2(
+            X_train, X_test,
+            Y_train[attr], Y_test[attr]
+        ) for attr in df_Y
+    ]
+    return(pd.Series(r2s, index=df_Y.columns.values, name="R2"))
 
 if __name__ == "__main__":
     from src import plotting
