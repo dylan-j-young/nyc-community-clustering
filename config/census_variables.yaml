@@ -180,6 +180,8 @@
 2023_acs_5yr_select:
   "DP02_0080PE": pct_sameresidence1yr
   "DP02_0080PM": err_pct_sameresidence1yr
+  "DP02_0094PE": pct_foreignborn
+  "DP02_0094PM": err_pct_foreignborn
   "DP02_0113PE": pct_englishonlyhome
   "DP02_0113PM": err_pct_englishonlyhome
   "DP03_0021PE": pct_commute_transit
