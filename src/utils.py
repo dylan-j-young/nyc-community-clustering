@@ -439,7 +439,7 @@ def _feature_r2(df_train, df_test, series_train, series_test):
     r2 = model.score(df_test, series_test)
     return(r2)
 
-def get_internal_feature_r2s(df, test_size=0.2, random_state=None):
+def get_internal_feature_r2s(df, test_size=0.2, n_runs=1, random_state=None):
     """ 
     Given a DataFrame df, attempt to predict each column of values using a linear regression on all the other columns. Returns R2 values for each column in a list.
 
@@ -451,13 +451,16 @@ def get_internal_feature_r2s(df, test_size=0.2, random_state=None):
     test_size : float, optional
         The fraction of rows used in the test dataset. Default is 0.2.
     
+    n_runs : int, optional
+        The number of times to perform the train/test split and regression. If 1, the returned DataFrame has one column: R2. If greater than 1, the returned DataFrame has R2_mean and R2_std statistics.
+    
     random_state : float or None, optional
         Random seed for the train-test split. If None, no random seed is supplied. Default is None.
     
     Returns
     -------
-    r2s : pd.Series
-        A series with indices set by the columns of df and values set by the resulting R2s from the linear regression.
+    r2s : pd.DataFrame
+        A DataFrame with indices set by the columns of df and values set by the resulting R2s from the linear regression. Includes both mean and std if n_runs > 1.
     """
     # scale features by z score
     cols = df.columns.values
@@ -465,23 +468,37 @@ def get_internal_feature_r2s(df, test_size=0.2, random_state=None):
     df_zscore = df.copy()
     df_zscore[cols] = scaler.fit_transform(df_zscore[cols])
 
-    X_train, X_test = train_test_split(df_zscore, 
-                                       test_size=test_size,
-                                       random_state=random_state)
+    r2s_all = []
+    for i in range(n_runs):
+        X_train, X_test = train_test_split(df_zscore, 
+                                        test_size=test_size,
+                                        random_state=random_state)
 
-    # For each attribute, get an r2 score
-    r2s = [
-        _feature_r2(
-            X_train.drop(columns=[col]), 
-            X_test.drop(columns=[col]),
-            X_train[col],
-            X_test[col]
-        ) for col in cols
-    ]
+        # For each attribute, get an r2 score
+        r2s = [
+            _feature_r2(
+                X_train.drop(columns=[col]), 
+                X_test.drop(columns=[col]),
+                X_train[col],
+                X_test[col]
+            ) for col in cols
+        ]
+        r2s_all.append(r2s)
+    r2s_all = np.array(r2s_all).T
 
-    return(pd.Series(r2s, index=cols, name="R2"))
+    if n_runs == 1:
+        return(pd.DataFrame(
+            r2s_all.flatten(),
+            index=cols, columns=["R2"]
+        ))
+    else:
+        return(pd.DataFrame(
+            np.column_stack(( r2s_all.mean(axis=1), r2s_all.std(axis=1) )),
+            index=cols, columns=["R2_mean","R2_std"]
+        ))
 
-def get_feature_r2s(df_X, df_Y, test_size=0.2, random_state=None):
+
+def get_feature_r2s(df_X, df_Y, test_size=0.2, n_runs=1, random_state=None):
     """
     Perform a linear regression on each of the columns in df_Y using the data in df_X (both DataFrames assumed to share common indices). Return a pd.Series object of R2 values for each column in df_Y.
 
@@ -495,31 +512,57 @@ def get_feature_r2s(df_X, df_Y, test_size=0.2, random_state=None):
 
     test_size : float, optional
         The fraction of rows used in the test dataset. Default is 0.2.
+    
+    n_runs : int, optional
+        The number of times to perform the train/test split and regression. If 1, the returned DataFrame has one column: R2. If greater than 1, the returned DataFrame has R2_mean and R2_std statistics.
 
     random_state : float or None, optional
         Random seed for the train-test split. If None, no random seed is supplied. Default is None.
     
     Returns
     -------
-    r2s : pd.Series
-        A series with indices set by the columns of df_Y and values set by the resulting R2s from the linear regression.
+    r2s : pd.DataFrame
+        A DataFrame with indices set by the columns of df_Y and values set by the resulting R2s from the linear regression. Includes both mean and std if n_runs > 1.
     """
     if isinstance(df_Y, pd.Series):
         if df_Y.name is None:
             df_Y.name = "Y"
         df_Y = pd.DataFrame(df_Y)
+    
+    # Standard scale for regression
+    scaler = StandardScaler()
+    X_cols = df_X.columns.values
+    X_scaled = df_X.copy()
+    X_scaled[X_cols] = scaler.fit_transform(X_scaled[X_cols])
+    Y_cols = df_Y.columns.values
+    Y_scaled = df_Y.copy()
+    Y_scaled[Y_cols] = scaler.fit_transform(Y_scaled[Y_cols])
 
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        df_X, df_Y, test_size=test_size, random_state=random_state
-    )
+    r2s_all = []
+    for i in range(n_runs):
+        X_train, X_test, Y_train, Y_test = train_test_split(
+            X_scaled, Y_scaled, test_size=test_size, random_state=random_state
+        )
 
-    r2s = [
-        _feature_r2(
-            X_train, X_test,
-            Y_train[attr], Y_test[attr]
-        ) for attr in df_Y
-    ]
-    return(pd.Series(r2s, index=df_Y.columns.values, name="R2"))
+        r2s = [
+            _feature_r2(
+                X_train, X_test,
+                Y_train[attr], Y_test[attr]
+            ) for attr in df_Y
+        ]
+        r2s_all.append(r2s)
+    r2s_all = np.array(r2s_all).T
+
+    if n_runs == 1:
+        return(pd.DataFrame(
+            r2s_all.flatten(),
+            index=df_Y.columns.values, columns=["R2"]
+        ))
+    else:
+        return(pd.DataFrame(
+            np.column_stack(( r2s_all.mean(axis=1), r2s_all.std(axis=1) )),
+            index=df_Y.columns.values, columns=["R2_mean","R2_std"]
+        ))
 
 if __name__ == "__main__":
     from src import plotting
