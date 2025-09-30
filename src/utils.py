@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from libpysal.weights import Rook, Queen
+import networkx as nx
 
 import os
 import random
@@ -497,7 +498,6 @@ def get_internal_feature_r2s(df, test_size=0.2, n_runs=1, random_state=None):
             index=cols, columns=["R2_mean","R2_std"]
         ))
 
-
 def get_feature_r2s(df_X, df_Y, test_size=0.2, n_runs=1, random_state=None):
     """
     Perform a linear regression on each of the columns in df_Y using the data in df_X (both DataFrames assumed to share common indices). Return a pd.Series object of R2 values for each column in df_Y.
@@ -563,6 +563,39 @@ def get_feature_r2s(df_X, df_Y, test_size=0.2, n_runs=1, random_state=None):
             np.column_stack(( r2s_all.mean(axis=1), r2s_all.std(axis=1) )),
             index=df_Y.columns.values, columns=["R2_mean","R2_std"]
         ))
+
+def remove_small_islands(gdf, n_min=5):
+    w = Rook.from_dataframe(gdf, use_index=False)
+    G = w.to_networkx()
+    connected_components = list( nx.connected_components(G) )
+
+    gdf_pruned = gdf.copy()
+    small_islands = []
+    for component in connected_components:
+        if len(component) <= 2*n_min:
+            island = gdf.iloc[list(component)].copy()
+
+            small_islands.append(island)
+            gdf_pruned = gdf_pruned.drop(island.index)
+    
+    return(gdf_pruned, small_islands)
+
+def add_small_island_regions(gdf, region_attr, small_islands):
+    """ 
+    Given a list (small_islands) of GeoDataFrames of disconnected regions and a larger GeoDataFrame with the same columns plus an extra column representing region labels, add the small_islands rows back into the larger frame with new region designations.
+    """
+
+    n_regions = len(gdf[region_attr].unique())
+
+    for i, island in enumerate(small_islands):
+        island[region_attr] = n_regions + i
+    
+    gdf_full = gpd.GeoDataFrame(
+        pd.concat([gdf] + small_islands),
+        crs=gdf.crs
+    )
+
+    return(gdf_full)
 
 if __name__ == "__main__":
     from src import plotting
