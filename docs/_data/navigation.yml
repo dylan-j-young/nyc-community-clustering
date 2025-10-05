@@ -1,0 +1,15 @@
+# _data/navigation.yml
+# Copied from main site repo
+
+- name: Home
+  link: "https://dylan-j-young.github.io/" # same as / on main site repo only
+- name: About
+  link: "https://dylan-j-young.github.io/about/" # same as /about/ on main site repo only
+- name: Projects
+  dropdown:
+    - name: NYC Community Clustering
+      link: https://dylan-j-young.github.io/nyc-community-clustering/
+    - name: Thompson Lab Data Analysis
+      link: https://dylan-j-young.github.io/thompson-pulsed/
+# - name: Contact
+#   link: /contact/

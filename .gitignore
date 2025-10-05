@@ -22,3 +22,9 @@ info/
 # Scratch notebooks 
 ## Promote successful approaches to official notebooks and functions in src/ 
 notebooks/scratch_*.ipynb
+
+# Jekyll artifacts (site hosting)
+_site/
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata

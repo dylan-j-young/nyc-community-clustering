@@ -1,0 +1,11 @@
+title: NYC Community Clustering
+theme: minima
+baseurl: "/nyc-community-clustering"  # project site
+url: "https://dylan-j-young.github.io"     # main site
+theme: minima  # use GitHub’s default Jekyll theme to start
+markdown: kramdown
+
+# Optional: links for header or footer
+github_username: dylan-j-young
+email: dylan.jing.young@gmail.com
+description: Data Science Portfolio
