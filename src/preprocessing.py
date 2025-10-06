@@ -5,6 +5,8 @@ import geopandas as gpd
 
 import os
 import requests
+import shutil
+import zipfile
 import json
 from pathlib import Path
 from typing import Optional, Sequence
@@ -12,7 +14,43 @@ from dotenv import load_dotenv
 
 from src import config, utils
 
-# Testbed in scratch_01 notebook
+def fetch_shapefiles(timeout=300):
+    """
+    Get 2023 shapefiles for NYC census tracts and areawater geometries.
+
+    Parameters
+    ----------
+    timeout : float, optional
+        Time in seconds to wait for a response from requests.get(url). Default is 300.
+    
+    Returns
+    -------
+    """
+
+    fips_codes = list( config.FIPS_DICT.keys() )
+    state = fips_codes[0][:2]
+
+    # URLs to pull 2023 shapefiles from
+    urls = [config.TRACTS_URL] + config.AREAWATER_URLS
+
+    for url in urls:
+        zip_path = config.SHAPEFILES_DIR / os.path.basename(url)
+        extract_dir = os.path.splitext(zip_path)[0]
+
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+
+        # Write zip file to config.RAW_DATA_DIR
+        with open(zip_path, "wb") as f:
+            f.write(response.content)
+
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)  # delete folder and contents
+        with zipfile.ZipFile(zip_path, "r") as z:
+            z.extractall(extract_dir)
+
+
+
 def clean_tracts(input_shapefile: str | Path,
                  output_path: str | Path,
                  areawater_shapefile: 

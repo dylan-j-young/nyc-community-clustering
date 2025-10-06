@@ -66,21 +66,25 @@ FEATURES_CUT2 = PROCESSED_DATA_DIR / "features_cut2.parquet"
 FEATURES_CUT3 = PROCESSED_DATA_DIR / "features_cut3.parquet"
 
 # Shapefiles: NYC census tracts
-RAW_SHAPEFILES_DIR = RAW_DATA_DIR / "shapefiles"
+SHAPEFILES_DIR = RAW_DATA_DIR / "shapefiles"
+TRACTS_URL = "https://www2.census.gov/geo/tiger/TIGER2023/TRACT/tl_2023_36_tract.zip"
 TRACTS_RAW = (
-    RAW_SHAPEFILES_DIR 
-    / "tl_2024_36_tract" 
-    / "tl_2024_36_tract.shp"
+    SHAPEFILES_DIR 
+    / "tl_2023_36_tract" 
+    / "tl_2023_36_tract.shp"
 )
 TRACTS_CLEAN = INTERIM_DATA_DIR / "tracts_clean.parquet"
 TRACTS_HIGHPOP = INTERIM_DATA_DIR / "tracts_highpop.parquet"
 
 # Shapefiles: Water area polygons for each county/borough
+AREAWATER_URLS = [
+    f"https://www2.census.gov/geo/tiger/TIGER2023/AREAWATER/tl_2023_{fips}_areawater.zip" for fips in FIPS_DICT.keys()
+]
 AREAWATER = [(
-    RAW_SHAPEFILES_DIR
-    / f"tl_2024_{a}_areawater"
-    / f"tl_2024_{a}_areawater.shp"
-    ) for a in FIPS_DICT.keys()
+    SHAPEFILES_DIR
+    / f"tl_2023_{fips}_areawater"
+    / f"tl_2023_{fips}_areawater.shp"
+    ) for fips in FIPS_DICT.keys()
 ]
 
 # 2020 Census Demographic Profile
