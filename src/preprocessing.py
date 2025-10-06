@@ -40,6 +40,8 @@ def fetch_shapefiles(timeout=300):
         response = requests.get(url, timeout=timeout)
         response.raise_for_status()
 
+        print(f"GET request status for {os.path.basename(url)}: {response.status_code}")
+
         # Write zip file to config.RAW_DATA_DIR
         with open(zip_path, "wb") as f:
             f.write(response.content)
@@ -231,7 +233,7 @@ def fetch_2023_acs_5yr_select():
     
     return(raw_data)
 
-def clean_2020_demographic_profile():
+def initial_clean_2020_demographic_profile():
     """
     Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns.
 
@@ -240,7 +242,7 @@ def clean_2020_demographic_profile():
     
     Returns
     -------
-    df_clean : pd.DataFrame
+    df : pd.DataFrame
         The cleaned dataframe saved to file.
     """
     # Load raw data from file and convert to a dataframe
@@ -273,11 +275,11 @@ def clean_2020_demographic_profile():
         df[col] = pd.to_numeric(df[col], errors="raise")
 
     # Export cleaned DataFrame to file
-    df.to_parquet(config.DECENNIAL2020_DP_CLEAN)
+    df.to_parquet(config.DECENNIAL2020_DP_INIT_CLEAN)
 
     return( df )
 
-def clean_2023_acs_5yr_select():
+def initial_clean_2023_acs_5yr_select():
     """
     Performs an initial cleaning of the 2023 ACS 5yr data.
 
@@ -286,7 +288,7 @@ def clean_2023_acs_5yr_select():
     
     Returns
     -------
-    df_clean : pd.DataFrame
+    df : pd.DataFrame
         The cleaned dataframe saved to file.
     """
     # Load raw data from file and convert to a dataframe
@@ -320,7 +322,7 @@ def clean_2023_acs_5yr_select():
     df = df.replace(-666666666, np.nan)
 
     # Export cleaned DataFrame to file
-    df.to_parquet(config.ACS5YR2023_CLEAN)
+    df.to_parquet(config.ACS5YR2023_INIT_CLEAN)
 
     return( df )
 
@@ -341,6 +343,6 @@ if __name__ == "__main__":
     # decennial2020_dp_raw = fetch_2020_demographic_profile()
 
     # # Test clean_2020_demographic_profile()
-    # decennial2020_dp_clean = clean_2020_demographic_profile()
+    # decennial2020_dp_clean = initial_clean_2020_demographic_profile()
 
     pass
