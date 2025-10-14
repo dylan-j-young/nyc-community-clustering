@@ -41,7 +41,7 @@ def _plot_and_annotate(ax, tracts,
     
     return( ax )
 
-def _zoom(ax, zoom_out):
+def _zoom(ax, zoom_out, bbox_aspect=1):
     """
     Basic wrapper for zooming out (or in) on a matplotlib axis.
     
@@ -52,6 +52,9 @@ def _zoom(ax, zoom_out):
 
     zoom_out : float
         Sets a scale factor for zooming out the map from the census tract (higher = zoomed farther out). Useful if you want to see the broader region of a tract or small collection of tracts.
+
+    bbox_aspect : float, optional
+        Sets the aspect ratio for the axis bounding box. Defined as width/height. Default is 1 (square).
 
     Returns
     -------
@@ -64,6 +67,12 @@ def _zoom(ax, zoom_out):
     x0, y0 = (xmin+xmax)/2, (ymin+ymax)/2
     dx, dy = (xmax-xmin)/2, (ymax-ymin)/2
 
+    # Grow extent to match bbox aspect
+    if bbox_aspect * dy > dx:
+        dx = dy * bbox_aspect
+    else:
+        dy = dx / bbox_aspect
+
     # Zoom out: set new bounds
     xmin_new, xmax_new = x0 - dx*zoom_out, x0 + dx*zoom_out
     ymin_new, ymax_new = y0 - dy*zoom_out, y0 + dy*zoom_out
@@ -73,8 +82,9 @@ def _zoom(ax, zoom_out):
     return( ax )
 
 def plot_tracts(tracts, 
-                zoom_out: float | str = "auto",
-                zoom_adjust: int = 0):
+                zoom_out = "auto",
+                zoom_adjust = 0,
+                figax = None):
     """
     Quickly visualizes a subset of census tracts (or a single tract). For plotting, GeoDataFrames are locally converted to Web Mercator and then plotted on top of a contextily basemap.
 
@@ -88,6 +98,9 @@ def plot_tracts(tracts,
 
     zoom_adjust : int, optional
         Sets an adjustment to the level of detail for the contextily basemap. A higher number increases the resolution of the map. Recommended not to go outside -1, 0, or 1 due to excessive load times. Default is 0.
+
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
     
     Returns
     -------
@@ -106,19 +119,29 @@ def plot_tracts(tracts,
     # Convert to Web Mercator (for compatibility with basemaps)
     tracts = tracts.to_crs(config.WEB_MERCATOR_EPSG)
 
-    # Create fig, ax
-    fig, ax = plt.subplots(figsize=(6, 4.5))
+    # Make plot
+    if figax is None:
+        figsize = (6, 4.5)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
 
     # Add tracts and census labels to figure
     ax = _plot_and_annotate(ax, tracts)
     
     # Zoom out: set defaults, or zoom out 
     if zoom_out == "auto":
-        zoom_out = 1 if (len(tracts) > 1) else 5
+        if len(tracts) == 1:
+            zoom_out = 4
+        elif len(tracts) <= 5:
+            zoom_out = 2
+        else:
+            zoom_out = 1
+        ax = _zoom(ax, zoom_out)
     else:
         assert not isinstance(zoom_out, str)
         ax = _zoom(ax, zoom_out)
-    
+
     # Improve visualization
     ax.set_title("Census tracts", fontsize=12)
     ax.axis("off")  # Remove axis labels for a clean map
