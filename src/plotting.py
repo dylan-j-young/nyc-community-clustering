@@ -9,6 +9,7 @@ import jenkspy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.colors as mplcolors
+import colorsys
 import contextily as ctx
 
 from src import config, utils
@@ -651,6 +652,125 @@ def plot_residual_structure(gdf, attrs, attr_y):
     ax.set_title(fr"$I_\mathrm{{{"Moran"}}}$(residuals) = {round(mI_res,2)} (vs. Y: {round(mI_y,2)})", pad=-15)
 
     return( fig, ax )
+
+def _adjust_lightness(color, amount=0.5):
+    try:
+        c = mplcolors.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mplcolors.to_rgb(c))
+    return( colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2]) )
+
+def _cmap_30():
+    """
+    Internal method to produce a 30-tone categorical colormap, based off the 10 default matplotlib colors (the "tab10" cmap).
+    """
+    # Get 10 color default map
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    # Lighten, then darken
+    lighter = [_adjust_lightness(color, amount=1.25) \
+               for color in default_colors]
+    darker = [_adjust_lightness(color, amount=0.8) \
+              for color in default_colors]
+
+    colors_30 = default_colors + lighter + darker
+    cmap_30 = mplcolors.ListedColormap(colors_30)
+    return( cmap_30 )
+
+def _cmap_60():
+    """
+    Internal method to produce a 60-tone categorical colormap, based off the 10 default matplotlib colors (the "tab10" cmap).
+    """
+    # Get 10 color default map
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    # Lighten, then darken
+    lighter = [_adjust_lightness(color, amount=1.25) \
+               for color in default_colors]
+    darker = [_adjust_lightness(color, amount=0.8) \
+              for color in default_colors]
+    lighter_2 = [_adjust_lightness(color, amount=1.43) \
+                 for color in default_colors]
+    darker_2 = [_adjust_lightness(color, amount=0.6) \
+                for color in default_colors]
+    lighter_3 = [_adjust_lightness(color, amount=1.6) \
+                 for color in default_colors]
+
+    colors_60 = default_colors + lighter + darker + lighter_2 + darker_2 + lighter_3
+    cmap_60 = mplcolors.ListedColormap(colors_60)
+    return( cmap_60 )
+
+def plot_categorical(gdf, attr, cmap="default", figax=None):
+    """ 
+    Given a GeoDataFrame, and a column specified by attr, construct a categorical map.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column and a column with a name defined by attr, consisting of categorical values.
+
+    attr : str
+        The name of the categorical column to plot.
+
+    cmap : mpl.colors.Colormap, optional
+        The (categorical) colormap to use, or the string "default". If "default", uses either "tab10" (the matplotlib default), _cmap_30() (a custom 30-tone variant), or _cmap_60() (a custom 60-tone variant), depending on the number of labels. Default is "default". 
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Determine cmap
+    n_labels = gdf[attr].nunique()
+    if n_labels <= 10:
+        cmap = "tab10"
+    elif n_labels <= 30:
+        cmap = _cmap_30()
+    else:
+        cmap = _cmap_60()
+
+    # Make plot
+    if figax is None:
+        figsize = (10,8)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Convert to Web Mercator
+    gdf = gdf.to_crs(config.WEB_MERCATOR_EPSG)
+
+    gdf.plot(
+        ax=ax, column=attr, categorical=True, edgecolor="w",
+        linewidth=0.25, cmap=cmap,
+        legend=True
+    )
+
+    # Improve visualization
+    ax.set_title("Clustering", fontsize=12)
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+    fig.tight_layout()
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=ctx.providers.CartoDB.Positron,
+                    reset_extent=True,
+                    zoom_adjust=0
+                    )
+    
+    return( fig, ax )
+
+# Colormaps for access outside of this script
+cmap_30 = _cmap_30()
+cmap_60 = _cmap_60()
 
 if __name__ == "__main__":
     from src import utils
