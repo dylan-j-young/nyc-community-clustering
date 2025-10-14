@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 
 import jenkspy
 
@@ -9,7 +11,7 @@ import matplotlib as mpl
 import matplotlib.colors as mplcolors
 import contextily as ctx
 
-from src import config
+from src import config, utils
 
 def _plot_and_annotate(ax, tracts,
                        linewidth: float = 1,
@@ -191,7 +193,66 @@ def plot_local_subregion(local_tracts, borough_tracts):
     
     return( fig, ax )
 
-def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False, **kwargs):
+def plot_pca_summary(df, idx=None, signed_weights=False):
+    """ 
+    Perform PCA on the input df and plot a summary of the results. This consists of two plots. The first graphs the unexplained fractional variance against the number of principal components, and the second graphs the normalized component weights along each feature direction (weights sum to 1).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input dataframe to perform PCA on.
+    
+    idx : np.ndarray or list or slice or None, optional
+        Subset of component indices to plot. If None, plots all components. Default is None.
+
+    signed_weights : bool, optional
+        Sets whether to plot the bars as strictly positive weights or to also plot the weights with a relative sign. Defualt is False.
+    
+    Returns
+    -------
+    pca : sklearn.decomposition.PCA
+        The PCA object
+
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes array with shape (1,2).
+    """
+    # Perform PCA and get feature names
+    pca = PCA().fit(df.to_numpy())
+    cols = df.columns.values
+
+    # Create fig, ax objects
+    fig, ax = plt.subplots(1, 2, figsize=(15,5),
+                           gridspec_kw={"width_ratios": [1,3]})
+
+    # ax[0]: Quick variance plot
+    n_eigs = 1 + np.arange(len(cols))
+    ax[0].plot(n_eigs, 1 - pca.explained_variance_ratio_.cumsum(), '.-')
+    ax[0].set_xticks(n_eigs)
+    ax[0].set_ylim((-0.01, None))
+    ax[0].grid()
+    ax[0].set_xlabel("Number of components")
+    ax[0].set_ylabel("Unexplained fractional variance")
+    ax[0].set_title("Variance vs. # Components")
+
+    # ax[1]: Component weights
+    n_bars = len(cols) if (idx is None) else len(cols[idx])
+    bar_width = min(0.1, 0.67/n_bars)
+    __, __ = plot_pca_weights(
+        pca.components_, cols,
+        idx=idx, signed_weights=signed_weights, bar_width=bar_width,
+        figax=(fig, ax[1])
+    )
+
+    fig.suptitle("PCA Summary")
+    fig.tight_layout()
+    return( pca, fig, ax )
+
+def plot_pca_weights(pca_components, cols, idx=None, 
+                     bar_width=0.1, signed_weights=False,
+                     figax=None, **kwargs):
     """ 
     Given a set of eigenvectors from pca.components_,
     plot the relative weights of each axis in a bar plot, defined as the magnitude squared of the eigenvector components along each axis (possibly signed).
@@ -203,12 +264,18 @@ def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False, **k
 
     cols : np.ndarray or list
         Names of the different columns.
+    
+    idx : np.ndarray or list or None, optional
+        Subset of component indices to plot. If None, plots all components. Default is None.
 
     bar_width : float, optional
         Sets the width of each bar (each column is spaced apart by 1). Default is 0.1.
 
-    signed_prob : bool, optional
+    signed_weights : bool, optional
         Sets whether to plot the bars as strictly positive weights or to also plot the weights with a relative sign. Defualt is False.
+
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
     
     Returns
     -------
@@ -221,26 +288,35 @@ def plot_pca_weights(pca_components, cols, bar_width=0.1, signed_prob=False, **k
     # Params
     intrabar_width = 0
     n_comps = len(cols)
-    n_bars = pca_components.shape[0]
+
+    # Define indices
+    if idx is None:
+        idx = [i for i in range(len(cols))]
+    n_bars = pca_components[idx].shape[0]
 
     # Make plot
-    figsize = (8,6) if not ("figsize" in kwargs) else kwargs["figsize"]
-    fig, ax = plt.subplots(figsize=figsize)
+    if figax is None:
+        figsize = (8,6) if not ("figsize" in kwargs) else kwargs["figsize"]
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
 
     # Plot bars
     x = np.arange(n_comps)
-    for i, component in enumerate(pca_components):
+    for i, component in enumerate(pca_components[idx]):
+        k = idx[i]
         offset = (-(n_bars-1)/2 + i) * (bar_width+intrabar_width)
-        sign_corr = np.sign(component)/np.abs(component) \
-            if signed_prob else 1
+        sign_corr = np.sign(component) if signed_weights else 1
         ax.bar(x + offset, sign_corr*component**2, 
                width = bar_width,
-               label=f"eig{i}")
+               label=f"eig{k}")
     
     ax.set_xticks(x, cols, fontsize=8, rotation=45, ha="right")
-    ax.set_ylim((-1,1) if signed_prob else (0,1))
+    ax.set_ylim((-0.5,1) if signed_weights else (0,1))
+    ax.set_ylabel("Weights (signed)" if signed_weights else "Weights")
     ax.grid()
     ax.legend()
+    ax.set_title("PCA Component Weights")
 
     return(fig, ax)
 
@@ -301,7 +377,8 @@ def discrete_nonuniform_colormap(name, boundaries, colors, N=256):
 
     return( cmap )
 
-def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds):
+def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds,
+                    figax = None):
     """ 
     Given a column of data and a set of tracts, construct a choropleth map with breaks defined using the Jenks natural breaks algorithm (1D K-means clustering). Colors are evenly spaced from white to the value specified by `color`.
 
@@ -318,6 +395,9 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds):
 
     cmap : mpl.colors.Colormap, optional
         The (continuous) colormap to pull colors from. Default is mpl.colors.Red.
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
     
     Returns
     -------
@@ -344,7 +424,12 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds):
     cmap_quant = discrete_nonuniform_colormap("test", jenks_bdys_norm, colors)
     norm = mplcolors.Normalize(vmin=vmin, vmax=vmax)
 
-    fig, ax = plt.subplots(figsize=(8,6))
+    # Make plot
+    if figax is None:
+        figsize = (8,6)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
 
     merged = tracts.copy()
     merged = merged.join(col)
@@ -382,6 +467,165 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds):
                     )
 
     fig.tight_layout()
+
+    return( fig, ax )
+
+def plot_feature_comparison(df, attr1, attr2, figax=None):
+    """
+    Given two columns from a DataFrame, plot a scatter plot comparing the two in order to look for correlations, clusters, or other interesting structure.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame containing the data.
+
+    attr1 : str
+        The name of the DataFrame column to be plotted on the X axis.
+
+    attr2 : str
+        The name of the DataFrame column to be plotted on the Y axis.
+
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object containing the scatter plot.
+    """
+    # Make plot
+    if figax is None:
+        figsize = (4.5, 4.5)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    ax.plot(df[attr1], df[attr2], '.', markersize=2)
+    ax.grid()
+    ax.set_xlabel(attr1)
+    ax.set_ylabel(attr2)
+    ax.set_title(f"Feature comparison scatter plot")
+
+    fig.tight_layout()
+
+    return(fig, ax)
+
+def plot_nonlinear_fit_summary(gdf, attr_x, attr_y, model, **kwargs):
+    """
+    Given two columns in a dataframe and a model, perform a fit using scipy.optimize.curve_fit (with all kwargs passed into this function) as well as a spatial autocorrelation analysis on the residuals with Moran's I. Plot the results in two panels: in the left panel, a scatter plot with the fitted curve and R2. In the right panel, a choropleth map of the residuals with Moran's I.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame containing both attrx and attry as columns.
+
+    attr_x : str
+        Name of the independent variable column of df.
+
+    attr_y : str
+        Name of the dependent variable column of df.
+
+    model : function
+        The proposed model, taking the form attr_y = model(attr_x, *params).
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plots.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes array with shape (1,2).
+    """
+    # Perform R2 analysis
+    r2, pOpt, pCov = utils.get_nonlinear_feature_r2(
+        gdf, attr_x, attr_y, model, **kwargs
+    )
+
+    # Calculate residuals
+    X, Y = gdf[attr_x].to_numpy(), gdf[attr_y].to_numpy()
+    Y_pred = model(X, *pOpt)
+    residuals = pd.Series(Y - Y_pred, index=gdf.index, name="residuals")
+
+    # Perform Moran's I on residuals
+    gdf_augmented = gdf.copy()
+    gdf_augmented["residuals"] = residuals
+    mI = utils.get_Morans_I(gdf_augmented, ["residuals", attr_x, attr_y])
+    mI_res, mI_x, mI_y = [
+        float(mI.loc[attr]) for attr in ["residuals", attr_x, attr_y]
+    ]
+
+    # Create fig, ax objects
+    fig, ax = plt.subplots(1, 2, figsize=(10,5),
+                           gridspec_kw={"width_ratios": [2,3]})
+
+    # ax[0]: Curve fit plot
+    ax[0].scatter(X, Y, s=5, marker=".", alpha=0.25)
+    ax[0].plot(np.sort(X), model(np.sort(X), *pOpt), '-k',
+               linewidth=1, label=fr"$R^2$ = {round(r2, 3)}")
+    ax[0].grid()
+    ax[0].set_xlabel(attr_x)
+    ax[0].set_ylabel(attr_y)
+    ax[0].set_title("Nonlinear curve fit")
+    ax[0].legend()
+
+    # ax[1]: Moran's I spatial autocorrelation
+    __, __ = plot_choropleth(residuals, gdf, figax=(fig, ax[1]))
+    ax[1].set_title(fr"$I_\mathrm{{{"Moran"}}}$(residuals) = {round(mI_res,2)} (vs. X: {round(mI_x,2)}, Y: {round(mI_y,2)})", pad=-15)
+
+    fig.suptitle(f"Nonlinear fit summary: Y ({attr_y}) vs. X ({attr_x})")
+    fig.tight_layout()
+    return( fig, ax )
+
+def plot_residual_structure(gdf, attrs, attr_y):
+    """
+    Given a GeoDataFrame with feature attributes given by attrs, perform a linear regression to predict attr_y vs. all other attributes using sklearn.linear_model.LinearRegression as well as a spatial autocorrelation analysis on the residuals with Moran's I. Plot the residuals and their Moran's I using a choropleth map.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame containing both attrx and attry as columns.
+
+    attrs : list of str
+        List of columns used in the model. Includes attr_y.
+
+    attr_y : str
+        Name of the dependent variable column of df.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object.
+    """
+    # Get X, y data arrays
+    X = gdf[attrs].drop(columns=[attr_y]).to_numpy()
+    y = gdf[attr_y].to_numpy()
+
+    # Perform the regression and calculate residuals
+    model = LinearRegression()
+    model.fit(X, y)
+    y_pred = model.predict(X)
+    residuals = pd.Series(
+        y - y_pred,
+        index=gdf.index,
+        name="residuals"
+    )
+
+    # Calculate Moran's I
+    mI = utils.get_Morans_I(gdf.join(residuals), ["residuals", attr_y])
+    mI_res, mI_y = [
+        float(mI.loc[attr]) for attr in ["residuals", attr_y]
+    ]
+
+    # Create plot
+    fig, ax = plt.subplots(1, 1, figsize=(6,5))
+    __, __ = plot_choropleth(residuals, gdf, figax=(fig, ax))
+    ax.set_title(fr"$I_\mathrm{{{"Moran"}}}$(residuals) = {round(mI_res,2)} (vs. Y: {round(mI_y,2)})", pad=-15)
 
     return( fig, ax )
 

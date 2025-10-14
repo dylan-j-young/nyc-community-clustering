@@ -3,16 +3,19 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from scipy.spatial import KDTree
+from scipy.optimize import curve_fit
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from libpysal.weights import Rook, Queen
+from esda import Moran
 import networkx as nx
 
 import os
 import random
 from typing import Optional
+import warnings
 
 from src import config
 
@@ -171,7 +174,7 @@ def CLR(X, pseudocount=1e-5):
 
     Parameters
     ----------
-    X : np.ndarray, shape (n_samples, n_features)
+    X : np.ndarray or pd.DataFrame, shape (n_samples, n_features)
         Input compositional data (rows sum to a constant).
 
     pseudocount : float, optional
@@ -179,9 +182,16 @@ def CLR(X, pseudocount=1e-5):
     
     Returns
     -------
-    X_clr : np.ndarray, shape (n_samples, n_features)
+    X_clr : np.ndarray or pd.DataFrame, shape (n_samples, n_features)
         CLR-transformed data.
     """
+    # If DataFrame, convert to ndarray
+    is_df = False
+    if isinstance(X, pd.DataFrame):
+        is_df = True
+        df = X.copy()
+        X = df.to_numpy()
+
     # Normalize by sum of first row
     total = X[0].sum()
     X = X / total
@@ -193,6 +203,13 @@ def CLR(X, pseudocount=1e-5):
     log_gm = np.mean(np.log(X), axis=1, keepdims=True)
     X_clr = np.log(X) - log_gm
 
+    # If DataFrame, convert back to DataFrame
+    if is_df:
+        df_clr = pd.DataFrame(X_clr,
+                              columns=[col + "_clr" for col in df.columns],
+                              index=df.index)
+        X_clr = df_clr
+    
     return(X_clr)
 
 def contiguity_matrix(gdf, type="queen"):
@@ -217,9 +234,9 @@ def contiguity_matrix(gdf, type="queen"):
     """
     # Generate matrix
     if type == "queen":
-        W = Queen.from_dataframe(gdf, use_index=True)
+        W = Queen.from_dataframe(gdf, use_index=True, silence_warnings=True)
     elif type == "rook":
-        W = Rook.from_dataframe(gdf, use_index=True)
+        W = Rook.from_dataframe(gdf, use_index=True, silence_warnings=True)
     else:
         raise
     
@@ -565,7 +582,7 @@ def get_feature_r2s(df_X, df_Y, test_size=0.2, n_runs=1, random_state=None):
         ))
 
 def remove_small_islands(gdf, n_min=5):
-    w = Rook.from_dataframe(gdf, use_index=False)
+    w = Rook.from_dataframe(gdf, use_index=False, silence_warnings=True)
     G = w.to_networkx()
     connected_components = list( nx.connected_components(G) )
 
@@ -596,6 +613,127 @@ def add_small_island_regions(gdf, region_attr, small_islands):
     )
 
     return(gdf_full)
+
+def get_Morans_I(gdf, attrs, contiguity="rook"):
+    """
+    Computes Moran's I for each column of gdf specified in attrs, given contiguity set by the geometry column in gdf.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame containing a geometry column of Polygons or MultiPolygons with valid contiguity (to be calculated).
+
+    attrs : list
+        List of columns of gdf to calculate Moran's I on.
+    
+    contiguity : str, optional
+        Specifies Rook or Queen contiguity. Default is Rook.
+    
+    Returns
+    -------
+    moran_I : pd.Series
+        Series of the Moran's I values, indexed by columns in attrs.
+    """
+    # Calculate contiguity
+    w = Rook.from_dataframe(gdf, use_index=False, silence_warnings=True) \
+            if (contiguity == "rook") else \
+            Queen.from_dataframe(gdf, use_index=False, silence_warnings=True)
+    
+    # Calculate Moran's I
+    morans_I = pd.Series(
+        [Moran(gdf[col], w).I for col in attrs],
+        index=attrs,
+        name="morans_I"
+    )
+
+    return( morans_I )
+
+def get_nonlinear_feature_r2(df, attr_x, attr_y, model, **kwargs):
+    """
+    Given two columns in a dataframe and a model, perform a fit using scipy.optimize.curve_fit (with all kwargs passed into this function), and return the R2 value of the fit.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing both attrx and attry as columns.
+
+    attr_x : str
+        Name of the independent variable column of df.
+
+    attr_y : str
+        Name of the dependent variable column of df.
+
+    model : function
+        The proposed model, taking the form attr_y = model(attr_x, *params).
+    
+    Returns
+    -------
+    r2 : float
+        The R2 value of the fit.
+
+    pOpt : np.ndarray, shape (n_params,)
+        The optimal parameters of model.
+    
+    pCov : np.ndarray, shape (n_params, n_params)
+        The covariance matrix of the fit.
+    """
+    # Get X, Y columns as numpy arrays
+    X, Y = df[attr_x].to_numpy(), df[attr_y].to_numpy()
+
+    # Perform the curve fit and get predicted Y values
+    pOpt, pCov = curve_fit(model, X, Y, **kwargs)
+    Y_pred = model(X, *pOpt)
+
+    # Evaluate R2
+    SS_total = np.sum( (Y - Y.mean())**2 )
+    SS_res = np.sum( (Y - Y_pred)**2 )
+    R2 = 1 - SS_res/SS_total
+
+    return( R2, pOpt, pCov )
+
+def get_residual_spatial_structure(gdf, attrs):
+    """
+    Given a DataFrame df, perform a simple linear regression on each column vs. all the other columns and calculate residuals. Then, calculate Moran's I on those residuals to obtain the degree of spatial structure contained in the residuals. Return all such Moran's I values in a pd.Series object.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for adjacency.
+
+    attrs : list of str
+        List of columns containing feature data.
+    
+    Returns
+    -------
+    residual_mIs : pd.Series
+        A Series with indices set by attrs and values set by the Moran's I of the residuals on each linear regression.
+    """
+
+    residual_mI_list = []
+    for attr_y in attrs:
+        # Get X, y data arrays
+        X = gdf[attrs].drop(columns=[attr_y]).to_numpy()
+        y = gdf[attr_y].to_numpy()
+
+        # Perform the regression and calculate residuals
+        model = LinearRegression()
+        model.fit(X, y)
+        y_pred = model.predict(X)
+        residuals = pd.Series(
+            y - y_pred,
+            index=gdf.index,
+            name="residuals"
+        )
+
+        # Calculate Moran's I
+        mI = get_Morans_I(gdf.join(residuals), ["residuals"])
+        residual_mI_val = float(mI.loc["residuals"])
+        residual_mI_list.append(residual_mI_val)
+
+    residual_mI = pd.Series(
+        residual_mI_list, index=attrs, name="residual_mI"
+    )
+    return( residual_mI )
 
 if __name__ == "__main__":
     from src import plotting

@@ -60,10 +60,7 @@ INTERIM_DATA_DIR = DATA_DIR / "interim"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
 # Feature selections for clustering
-FEATURES_ALL = PROCESSED_DATA_DIR / "features_all.parquet"
-FEATURES_CUT1 = PROCESSED_DATA_DIR / "features_cut1.parquet"
-FEATURES_CUT2 = PROCESSED_DATA_DIR / "features_cut2.parquet"
-FEATURES_CUT3 = PROCESSED_DATA_DIR / "features_cut3.parquet"
+FEATURES_11 = PROCESSED_DATA_DIR / "features_11.parquet"
 
 # Shapefiles: NYC census tracts
 SHAPEFILES_DIR = RAW_DATA_DIR / "shapefiles"
