@@ -582,6 +582,25 @@ def get_feature_r2s(df_X, df_Y, test_size=0.2, n_runs=1, random_state=None):
         ))
 
 def remove_small_islands(gdf, n_min=5):
+    """ 
+    Given a GeoDataFrame and a minimum number of regions n_min to fit in a cluster, identify, isolate, and remove any disconnected islands with fewer than 2*n_min regions. This threshold is the point above which the island could be split into two minimally sized clusters. 
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for identifying connectivity.
+    
+    n_min : int, optional
+        The minimum size of a desired cluster. Default is 5.
+    
+    Returns
+    -------
+    gdf_pruned : gpd.GeoDataFrame
+        The input dataset with rows removed that belong to any small islands.
+    
+    small_islands : list of gpd.GeoDataFrame
+        List of GeoDataFrame objects (row slices of the original gdf), with each object corresponding to a connected small island.
+    """
     w = Rook.from_dataframe(gdf, use_index=False, silence_warnings=True)
     G = w.to_networkx()
     connected_components = list( nx.connected_components(G) )
@@ -597,15 +616,31 @@ def remove_small_islands(gdf, n_min=5):
     
     return(gdf_pruned, small_islands)
 
-def add_small_island_regions(gdf, region_attr, small_islands):
+def add_small_island_regions(gdf, cluster_attr, small_islands):
     """ 
     Given a list (small_islands) of GeoDataFrames of disconnected regions and a larger GeoDataFrame with the same columns plus an extra column representing region labels, add the small_islands rows back into the larger frame with new region designations.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for identifying connectivity.
+    
+    cluster_attr : int, optional
+        The name of the categorical column defining each sample's cluster label.
+
+    small_islands : list of gpd.GeoDataFrame
+        List of GeoDataFrame objects (row slices of the original gdf), with each object corresponding to a connected small island.
+    
+    Returns
+    -------
+    gdf_full : gpd.GeoDataFrame
+        The input dataset with islands added back in.   
     """
 
-    n_regions = len(gdf[region_attr].unique())
+    n_regions = len(gdf[cluster_attr].unique())
 
     for i, island in enumerate(small_islands):
-        island[region_attr] = n_regions + i
+        island[cluster_attr] = n_regions + i
     
     gdf_full = gpd.GeoDataFrame(
         pd.concat([gdf] + small_islands),
@@ -734,6 +769,35 @@ def get_residual_spatial_structure(gdf, attrs):
         residual_mI_list, index=attrs, name="residual_mI"
     )
     return( residual_mI )
+
+def aggregate_clusters(gdf, feature_attrs, cluster_attr):
+    """ 
+    Given a GeoDataFrame with cluster labels, dissolve the individual tracts into a single cluster, and calculate characteristic feature values
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    feature_attrs : list of str
+        List of feature variable names to include in the dissolved GeoDataFrame. Aggregated value is calculated using a median.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+
+    Returns
+    -------
+    clusters : gpd.GeoDataFrame
+        GeoDataFrame where each row corresponds to a single cluster. Feature attributes calculated using a median of the representative tracts.
+    """
+
+    # Aggregation function for combining geographical and feature data
+    aggfunc = {"AREA": "sum", "LAT": "median", "LONG": "median"} | {feature: "median" for feature in feature_attrs}
+
+    # Dissolve clusters
+    clusters = gdf.dissolve(by=cluster_attr, aggfunc=aggfunc)
+
+    return( clusters )
 
 if __name__ == "__main__":
     from src import plotting

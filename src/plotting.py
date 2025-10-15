@@ -4,6 +4,8 @@ import geopandas as gpd
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 
+import libpysal
+import networkx as nx
 import jenkspy
 
 import matplotlib.pyplot as plt
@@ -749,11 +751,87 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     gdf.plot(
         ax=ax, column=attr, categorical=True, edgecolor="w",
         linewidth=0.25, cmap=cmap,
-        legend=True
+        legend=False
     )
 
     # Improve visualization
-    ax.set_title("Clustering", fontsize=12)
+    ax.set_title(attr, fontsize=12)
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+    fig.tight_layout()
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=ctx.providers.CartoDB.Positron,
+                    reset_extent=True,
+                    zoom_adjust=0
+                    )
+    
+    return( fig, ax )
+
+def plot_clusters(gdf, cluster_attr, figax=None):
+    """ 
+    Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries with a greedy coloring algorithm.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Aggregate clusters into a gdf
+    clusters = utils.aggregate_clusters(gdf, [], cluster_attr)
+
+    # Greedy color using networkx
+    w = libpysal.weights.Queen.from_dataframe(clusters, 
+                                              use_index=False, silence_warnings=True)
+    G = w.to_networkx()
+    coloring = nx.algorithms.coloring.greedy_color(G)
+
+    # Assign colors to the coloring (using the default matplotlib colors)
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    colormap = pd.Series({
+        cluster_idx: default_colors[coloring[cluster_idx]] \
+        for cluster_idx in coloring
+    })
+
+    # Make plot
+    if figax is None:
+        figsize = (10,8)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Convert to Web Mercator
+    clusters = clusters.to_crs(config.WEB_MERCATOR_EPSG)
+
+    clusters.plot(
+        ax=ax, color=colormap, edgecolor="w",
+        linewidth=0.25
+    )
+
+    # Annotate labels
+    for idx, row in clusters.iterrows():
+        ax.annotate(text=str(int(idx)), 
+                    xy=row.geometry.representative_point().coords[0],
+                    horizontalalignment='center', fontsize=8, color='black')
+
+    # Improve visualization
+    ax.set_title(cluster_attr, fontsize=12)
     ax.axis("off")  # Remove axis labels for a clean map
     ax.set_aspect("equal")
     fig.tight_layout()
