@@ -799,6 +799,108 @@ def aggregate_clusters(gdf, feature_attrs, cluster_attr):
 
     return( clusters )
 
+def _proportionally_assign_clusters(nc, component_nodes):
+    """ 
+    Internal method to assign nc total clusters to different connected components in the full contiguity graph.
+
+    Parameters
+    ----------
+    nc : int
+        The total number of clusters.
+
+    component_nodes : list of int
+        List of the number of nodes in each component. 
+    
+    Returns
+    -------
+    component_ncs : list of int
+        List of the number of clusters assigned to each component. Each component must receive a minimum of 1.
+    """
+    # Get the fraction of total nodes present in each component
+    total_nodes = sum(component_nodes)
+    component_frac = np.array([nodes/total_nodes for nodes in component_nodes])
+
+    # Find nc_k such that nc_k/nc is as close as possible to component_frac
+    rounded = np.round(nc * component_frac)
+
+    # Are any entries equal to 0? If so, set to 1 and coarse assign to component_ncs
+    component_ncs = np.array([(1 if nc_k == 0 else nc_k) for nc_k in rounded])
+    # Total count may be greater than nc. If so, we have to subtract assigned clusters. Do so iteratively.
+    while sum(component_ncs) > nc:
+        # How far off is our fraction for each component?
+        frac_devs = (rounded == 0) * -np.inf + \
+                    (rounded != 0) * (component_ncs/nc - component_frac)
+        
+        # Find largest positive fractional deviation and subtract 1 from it
+        i = np.argmax(frac_devs)
+        component_ncs[i] -= 1
+
+    # Convert to list of ints
+    component_ncs = [int(n) for n in component_ncs.tolist()]
+
+    return( component_ncs )
+
+def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
+    """ 
+    Given a GeoDataFrame of multiple discontiguous components, perform spatial clustering using the algorithm specified in the model wrapper on each connected component, and then combine into a single series.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for adjacency.
+
+    attrs : list of str
+        List of columns containing feature data.
+
+    nc : int
+        The total number of clusters. Must be at least as large as the number of connected components.
+
+    alg : func
+        A wrapper from src/algorithms.py that performs a clustering algorithm on a connected component.
+    
+    name : str
+        The desired name for the column of cluster labels.
+
+    seed : int, optional
+        A random seed to feed into the clustering algorithm. Default is 0.
+
+    Returns
+    -------
+    clusters : pd.Series
+        Series of cluster labels (from 0 to nc-1), indexed by the index of gdf.
+    """
+    # Get list of connected components
+    w = Rook.from_dataframe(gdf,
+            use_index=True, silence_warnings=True
+    )
+    g = w.to_networkx()
+    ccs = list( nx.connected_components(g) )
+    component_nodes = [len(cc) for cc in ccs]
+
+    # Designate cluster counts to each component
+    component_ncs = _proportionally_assign_clusters(nc, component_nodes)
+
+    # Iterate over connected components
+    clusters = pd.Series()
+    for i, component in enumerate(ccs):
+        # Keep track of nc and label counts
+        nc = component_ncs[i]
+        prev_ncs = sum(component_ncs[:i])
+
+        # Get connected component gdf
+        ids = gdf.index[list(component)]
+        connected_gdf = gdf.loc[ids]
+
+        # Cluster using the provided clustering algorithm
+        labels = alg(connected_gdf, attrs, nc, seed=seed) + prev_ncs
+        if i > 0: 
+            clusters = pd.concat([clusters, labels], axis=0)
+        else:
+            clusters = labels
+    
+    clusters.name = name
+    return( clusters )
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt
