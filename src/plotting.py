@@ -770,9 +770,9 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     
     return( fig, ax )
 
-def plot_clusters(gdf, cluster_attr, figax=None):
+def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
     """ 
-    Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries with a greedy coloring algorithm.
+    Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries.
 
     Parameters
     ----------
@@ -784,6 +784,9 @@ def plot_clusters(gdf, cluster_attr, figax=None):
     
     figax : tuple of (fig, ax) or None, optional
         Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+
+    color_clusters : bool, optional
+        Flag that sets whether or not to color in the cluster geometries. If True, uses a greedy coloring algorithm from the networkx library. If False, plots only the outlines.
     
     Returns
     -------
@@ -795,19 +798,7 @@ def plot_clusters(gdf, cluster_attr, figax=None):
     """
     # Aggregate clusters into a gdf
     clusters = utils.aggregate_clusters(gdf, [], cluster_attr)
-
-    # Greedy color using networkx
-    w = libpysal.weights.Queen.from_dataframe(clusters, 
-                                              use_index=False, silence_warnings=True)
-    G = w.to_networkx()
-    coloring = nx.algorithms.coloring.greedy_color(G)
-
-    # Assign colors to the coloring (using the default matplotlib colors)
-    default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    colormap = pd.Series({
-        cluster_idx: default_colors[coloring[cluster_idx]] \
-        for cluster_idx in coloring
-    })
+    clusters = clusters.to_crs(config.WEB_MERCATOR_EPSG)
 
     # Make plot
     if figax is None:
@@ -816,13 +807,31 @@ def plot_clusters(gdf, cluster_attr, figax=None):
     else:
         fig, ax = figax
 
-    # Convert to Web Mercator
-    clusters = clusters.to_crs(config.WEB_MERCATOR_EPSG)
+    if color_clusters:
+        # Greedy color using networkx
+        w = libpysal.weights.Queen.from_dataframe(clusters, 
+                                                use_index=False, silence_warnings=True)
+        G = w.to_networkx()
+        coloring = nx.algorithms.coloring.greedy_color(G)
 
-    clusters.plot(
-        ax=ax, color=colormap, edgecolor="w",
-        linewidth=0.25
-    )
+        # Assign colors to the coloring (using the default matplotlib colors)
+        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colormap = pd.Series({
+            cluster_idx: default_colors[coloring[cluster_idx]] \
+            for cluster_idx in coloring
+        })
+
+        # Plot
+        clusters.plot(
+            ax=ax, color=colormap, edgecolor="w",
+            linewidth=0.25
+        )
+    else:
+        # Plot only outlines
+        clusters.plot(
+            ax=ax, facecolor="none", edgecolor="w",
+            linewidth=0.25
+        )
 
     # Annotate labels
     for idx, row in clusters.iterrows():
