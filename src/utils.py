@@ -828,8 +828,8 @@ def _proportionally_assign_clusters(nc, component_nodes):
     # Total count may be greater than nc. If so, we have to subtract assigned clusters. Do so iteratively.
     while sum(component_ncs) > nc:
         # How far off is our fraction for each component?
-        frac_devs = (rounded == 0) * -np.inf + \
-                    (rounded != 0) * (component_ncs/nc - component_frac)
+        frac_devs = (component_ncs == 1) * -100 + \
+                    (component_ncs != 1) * (component_ncs/nc - component_frac)
         
         # Find largest positive fractional deviation and subtract 1 from it
         i = np.argmax(frac_devs)
