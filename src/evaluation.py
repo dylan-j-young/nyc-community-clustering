@@ -276,6 +276,19 @@ def polsby_popper(gdf, geometry="geometry"):
     overall_score = float( np.mean(score) )
     return( overall_score )
 
+def heterogeneity(df, feature_attrs, label_attr):
+    H = 0
+    clustered = df.groupby(label_attr)
+    for label, cluster in clustered:
+        # Get within-cluster SSD (heterogeneity)
+        X = cluster[feature_attrs].to_numpy()
+        xbar = np.mean(X, axis=0, keepdims=True)
+        ssd = np.sum((X - xbar)**2)
+
+        # Add to overall heterogeneity
+        H += ssd
+    return(H)
+
 def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
                                 metric_names="all", verbose=False):
     """ 
@@ -287,6 +300,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
     - "path-silhouette"
     - "modified-psil"
     - "modified-psil-bdy"
+    - "heterogeneity"
 
     Parameters
     ----------
@@ -311,7 +325,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         DataFrame with columns given by the evaluation metrics used and indices given by the cluster column names.
     """
     if metric_names == "all":
-        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "path-silhouette", "modified-psil", "modified-psil-bdy"]
+        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "path-silhouette", "modified-psil", "modified-psil-bdy", "heterogeneity"]
 
     # Iterate over cluster label columns
     all_scores = []
@@ -371,6 +385,11 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
                     weights[i] = (len(lc_neighbors) > 0)
                 
                 scores.append( np.average(mpsil_arr, weights=weights) )
+
+            # -- SSD heterogeneity --
+            if "heterogeneity" in metric_names:
+                scores.append( heterogeneity(gdf, feature_attrs, label_attr) )
+
         all_scores.append(scores)
 
     # Construct DataFrame out of scores
