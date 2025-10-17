@@ -3,13 +3,20 @@ import pandas as pd
 import geopandas as gpd
 import scipy.sparse as sp
 from scipy.sparse import csgraph as cg
+from scipy.sparse import SparseEfficiencyWarning
 from sklearn.metrics.pairwise import euclidean_distances, pairwise_distances
 from sklearn.metrics import davies_bouldin_score
 
-import libpysal
+from libpysal.weights import Rook
+from libpysal.weights.util import WSP
 from esda import path_silhouette
 
-def _modified_path_silhouette_samples(dist_matrix, labels):
+import warnings
+warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
+
+from src import config, utils
+
+def _calculate_truncated_sample_silhouettes(dist_matrix, labels):
     """ 
     Internal method for computing a custom-made, modified form of the path silhouette score. This function is a simplified and modified implementation of `sklearn.silhouette_samples()`.
     
@@ -115,9 +122,6 @@ def modified_path_silhouette(data, labels, W,
     scores : array-like of shape (n_samples,)
         Modified path silhouette scores for each sample.    
     """
-    # if W is None:
-    #     W = libpysal.weights.Rook.from_dataframe(gdf, use_index=False, silence_warnings=True)
-
     # -- From esda.path_silhouette: get path-weighted distances (all_pairs) --
     if D is None:
         D = metric(data)
@@ -137,8 +141,6 @@ def modified_path_silhouette(data, labels, W,
 
     # -- From esda.path_silhouette: recurse on connected subcomponents
     if W.n_components > 1:
-        from libpysal.weights.util import WSP
-
         psils_ = np.empty(W.n, dtype=float)
         for component in np.unique(W.component_labels):
             this_component_mask = np.nonzero(W.component_labels == component)[0]
@@ -168,9 +170,9 @@ def modified_path_silhouette(data, labels, W,
                 psils = subgraph_solutions
             psils_[this_component_mask] = psils
         psils = psils_
-    # -- From esda.path_silhouette: get silhouettes using path-weighted distances --
     else:
-        psils = _modified_path_silhouette_samples(all_pairs, labels)
+        # Fully connected graph: compute a modified form of the silhouette that truncates the number of samples used per cluster
+        psils = _calculate_truncated_sample_silhouettes(all_pairs, labels)
     
     scores = psils
     return( scores )
@@ -207,8 +209,8 @@ def contiguous_dbs(gdf, feature_attrs, label_attr):
     # -- Generate adjacency matrix for labels --
     clusters = gdf.dissolve(by=label_attr)
     nc = len(clusters)
-    W = libpysal.weights.Rook.from_dataframe(clusters, 
-                                             use_index=True, silence_warnings=True)
+    W = Rook.from_dataframe(clusters, 
+                            use_index=True, silence_warnings=True)
     cluster_names = clusters.index.values.tolist()
 
     # -- Calculate centroids and intra-dists (from sklearn implementation) --
@@ -216,7 +218,7 @@ def contiguous_dbs(gdf, feature_attrs, label_attr):
     centroids = np.zeros((nc, len(X[0])), dtype=float)
     for k in range(nc):
         cluster_name = cluster_names[k]
-        cluster_k = X_df.loc[df[label_attr] == cluster_name].values
+        cluster_k = X_df.loc[gdf[label_attr] == cluster_name].values
         centroid = cluster_k.mean(axis=0)
         centroids[k] = centroid
         intra_dists[k] = np.average(pairwise_distances(cluster_k, [centroid]))
@@ -273,3 +275,107 @@ def polsby_popper(gdf, geometry="geometry"):
     # Average to get the overall score
     overall_score = float( np.mean(score) )
     return( overall_score )
+
+def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
+                                metric_names="all", verbose=False):
+    """ 
+    Given a dataset with (potentially multiple) columns with cluster labels, evaluate these clusterings using various metrics defined by metric_names. Possible metrics include:
+
+    - "polsby-popper"
+    - "davies-boudin-score"
+    - "contiguous-dbs"
+    - "path-silhouette"
+    - "modified-psil"
+    - "modified-psil-bdy"
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        The dataset. Must contain a valid geometry column for contiguity generation, as well as columns containing cluster labels.
+
+    feature_attrs : list of str
+        A list of all the column names used to calculate the distance metric.
+    
+    label_attrs : list of str
+        List of the names of columns containing cluster labels to evaluate.
+
+    metric_names : str or list of str, optional
+        Specifies what metrics to evaluate. If "all", evaluates all listed metrics. Otherwise, this must be a list of valid metric names as defined above. Default is "all"
+
+    verbose : bool, optional
+        Specifies whether or not to print update flags as different cluster columns are evaluated. Default is False.
+
+    Returns
+    -------
+    eval_metrics : pd.DataFrame
+        DataFrame with columns given by the evaluation metrics used and indices given by the cluster column names.
+    """
+    if metric_names == "all":
+        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "path-silhouette", "modified-psil", "modified-psil-bdy"]
+
+    # Iterate over cluster label columns
+    all_scores = []
+    for label_attr in label_attrs:
+        if verbose:
+            print(f"Evaluating {label_attr}...")
+        scores = []
+
+        # Process data, labels, clusters, and contiguity objects
+        X = gdf[feature_attrs].to_numpy()
+        labels = gdf[label_attr].to_numpy()
+        clusters = utils.aggregate_clusters(gdf, feature_attrs, label_attr)
+        W = Rook.from_dataframe(gdf,
+                                use_index=False, silence_warnings=True)
+        W_clust = Rook.from_dataframe(clusters,
+                                      use_index=False,
+                                      silence_warnings=True)
+
+        # -- Polsby-Popper --
+        if "polsby-popper" in metric_names:
+            scores.append( polsby_popper(clusters) )
+
+        # -- Davies-Bouldin --
+        if "davies-bouldin-score" in metric_names:
+            scores.append( davies_bouldin_score(X, labels) )
+
+        # -- Contiguous Davies-Boudin --
+        if "contiguous-dbs" in metric_names:
+            scores.append( contiguous_dbs(gdf, feature_attrs, label_attr) )
+        
+        # -- Average path silhouette --
+        if "path-silhouette" in metric_names:
+            psil_arr = path_silhouette(
+                X, labels, W, 
+                metric=euclidean_distances,
+                closest=False
+            )
+            scores.append( float(np.mean(psil_arr)) )
+
+        # -- Modified path silhouette --
+        if ("modified-psil" in metric_names) \
+            or ("modified-psil-bdy" in metric_names):
+            mpsil_arr = modified_path_silhouette(X, labels, W,
+                                                D=None, metric=euclidean_distances)
+        
+            # Average over all tracts
+            if "modified-psil" in metric_names:
+                scores.append( float(np.mean(mpsil_arr)) )
+
+            # Only average over tracts on a cluster boundary
+            if "modified-psil-bdy" in metric_names:
+                weights = np.ones(len(labels)).astype(bool)
+                for i in range(len(labels)):
+                    lc = labels[i]
+                    lc_neighbors = set(labels[W.neighbors[i]])
+                    lc_neighbors.discard(lc)
+                    weights[i] = (len(lc_neighbors) > 0)
+                
+                scores.append( np.average(mpsil_arr, weights=weights) )
+        all_scores.append(scores)
+
+    # Construct DataFrame out of scores
+    eval_metrics = pd.DataFrame(
+        all_scores, index=label_attrs, columns=metric_names
+    )
+
+    return( eval_metrics )
