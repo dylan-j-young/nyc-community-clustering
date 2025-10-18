@@ -13,6 +13,7 @@ import jenkspy
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.colors as mplcolors
+import matplotlib.ticker as ticker
 import colorsys
 import contextily as ctx
 
@@ -744,7 +745,7 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
 
     # Make plot
     if figax is None:
-        figsize = (10,8)
+        figsize = (9,7)
         fig, ax = plt.subplots(figsize=figsize)
     else:
         fig, ax = figax
@@ -815,7 +816,7 @@ def plot_clusters(gdf, cluster_attr, figax=None,
 
     # Make plot
     if figax is None:
-        figsize = (10,8)
+        figsize = (9,7)
         fig, ax = plt.subplots(figsize=figsize)
     else:
         fig, ax = figax
@@ -986,6 +987,71 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
     ax.set_title(f"{sil_type} for {cluster_attr}: mean={round(sil_mean,3)}", fontsize=12)
 
     return( fig, ax )
+
+def plot_component_scans(metrics, component_names, suptitle):
+    metric_names = metrics.columns.to_numpy()
+
+    components = set(metrics.index.get_level_values(0))
+    n_components = len(components)
+    n_metrics = metrics.shape[1]
+
+    # Dynamic fig size
+    x_size = (4*n_components) if (n_components <= 2) else 10
+    y_size = (2*n_metrics) if (n_metrics <= 3) else 7
+    fig, ax = plt.subplots(n_metrics, n_components, figsize=(x_size, y_size))
+
+    # Fill in figure
+    ymin, ymax = [np.inf] * n_metrics, [-np.inf] * n_metrics
+    for j, c in enumerate(components):
+        metrics_j = metrics.loc[c]
+        Y = metrics_j.to_numpy()
+        X = metrics_j.index.to_numpy()
+
+        # Plot data
+        for i, m in enumerate(metric_names):
+            ax[i,j].plot(X, Y[:,i], '.-k')
+            
+            # Update extents
+            ymin[i] = min(ymin[i], np.min(Y[:,i]))
+            ymax[i] = max(ymax[i], np.max(Y[:,i]))
+        
+        # Set final plot ranges
+        dx = np.max(X) - np.min(X)
+        xlims = (0, np.max(X)+dx*0.05)
+        dy = [ymax[i]-ymin[i] for i in range(n_metrics)]
+        ymin = [
+            0 if (ymin[i] == 0) else (ymin[i] - dy[i]*0.05) \
+            for i in range(n_metrics)
+        ]
+        ymax = [ymax[i] + dy[i]*0.05 for i in range(n_metrics)]
+        ylims = [*zip(ymin, ymax)]
+
+        # Prettify plots
+        locator = ticker.MaxNLocator(nbins = 5, steps=[1,2,4,5,10], min_n_ticks=3)
+        for i, m in enumerate(metric_names):
+            ax[i,j].set_xlim(xlims)
+            ax[i,j].set_ylim(ylims[i])
+            ax[i,j].grid()
+            ax[i,j].xaxis.set_major_locator(locator)
+            ax[i,j].yaxis.set_major_locator(locator)
+            ax[i,j].tick_params(axis="both", direction="in")
+            
+            if i == 0:
+                ax[i,j].set_title(component_names[j])
+
+            if i == n_metrics-1:
+                ax[i,j].set_xlabel("Number of clusters")
+            else:
+                ax[i,j].tick_params(axis="x", labelbottom=False)
+
+            if j == 0:
+                ax[i,j].set_ylabel(m)
+            else:
+                ax[i,j].tick_params(axis="y", labelleft=False)
+
+    fig.suptitle(suptitle)
+    fig.tight_layout()
+    return(fig, ax)
 
 # Colormaps for access outside of this script
 cmap_30 = _cmap_30()

@@ -10,6 +10,7 @@ from sklearn.metrics import davies_bouldin_score, silhouette_samples, silhouette
 from libpysal.weights import Rook
 from libpysal.weights.util import WSP
 from esda import path_silhouette
+import networkx as nx
 
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
@@ -295,7 +296,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
     Given a dataset with (potentially multiple) columns with cluster labels, evaluate these clusterings using various metrics defined by metric_names. Possible metrics include:
 
     - "polsby-popper"
-    - "davies-bouldin-score"
+    - "davies-bouldin"
     - "contiguous-dbs"
     - "silhouette"
     - "path-silhouette"
@@ -326,7 +327,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         DataFrame with columns given by the evaluation metrics used and indices given by the cluster column names.
     """
     if metric_names == "all":
-        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "silhouette", "path-silhouette", "truncated-psil", "truncated-psil-bdy", "heterogeneity"]
+        metric_names = ["polsby-popper", "davies-bouldin", "contiguous-dbs", "silhouette", "path-silhouette", "truncated-psil", "truncated-psil-bdy", "heterogeneity"]
 
     # Iterate over cluster label columns
     all_scores = []
@@ -341,44 +342,54 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         clusters = utils.aggregate_clusters(gdf, feature_attrs, label_attr)
         W = Rook.from_dataframe(gdf,
                                 use_index=False, silence_warnings=True)
-        W_clust = Rook.from_dataframe(clusters,
-                                      use_index=False,
-                                      silence_warnings=True)
+        n_labels = len(set(labels))
 
         # -- Polsby-Popper --
         if "polsby-popper" in metric_names:
             scores.append( polsby_popper(clusters) )
 
         # -- Davies-Bouldin --
-        if "davies-bouldin-score" in metric_names:
-            scores.append( davies_bouldin_score(X, labels) )
+        if "davies-bouldin" in metric_names:
+            if n_labels > 1:
+                scores.append( davies_bouldin_score(X, labels) )
+            else:
+                scores.append( 0 )
 
-        # -- Contiguous Davies-Boudin --
+        # -- Contiguous Davies-Boudin score --
         if "contiguous-dbs" in metric_names:
             scores.append( contiguous_dbs(gdf, feature_attrs, label_attr) )
         
         # -- Average path silhouette --
         if "silhouette" in metric_names:
-            sil = silhouette_score(
-                X, labels,
-                metric="euclidean"
-            )
+            if n_labels > 1:
+                sil = silhouette_score(
+                    X, labels,
+                    metric="euclidean"
+                )
+            else:
+                sil = 0
             scores.append( sil )
         
         # -- Average path silhouette --
         if "path-silhouette" in metric_names:
-            psil_arr = path_silhouette(
-                X, labels, W, 
-                metric=euclidean_distances,
-                closest=False
-            )
-            scores.append( float(np.mean(psil_arr)) )
+            if n_labels > 1: 
+                psil_arr = path_silhouette(
+                    X, labels, W, 
+                    metric=euclidean_distances,
+                    closest=False
+                )
+                scores.append( float(np.mean(psil_arr)) )
+            else:
+                scores.append( 0 )
 
         # -- Truncated path silhouette --
         if ("truncated-psil" in metric_names) \
             or ("truncated-psil-bdy" in metric_names):
-            mpsil_arr = truncated_path_silhouette(X, labels, W,
-                                                D=None, metric=euclidean_distances)
+            if n_labels > 1:
+                mpsil_arr = truncated_path_silhouette(X, labels, W,
+                                                    D=None, metric=euclidean_distances)
+            else:
+                mpsil_arr = np.zeros(len(labels))
         
             # Average over all tracts
             if "truncated-psil" in metric_names:
@@ -393,7 +404,10 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
                     lc_neighbors.discard(lc)
                     weights[i] = (len(lc_neighbors) > 0)
                 
-                scores.append( np.average(mpsil_arr, weights=weights) )
+                if n_labels > 1:
+                    scores.append( np.average(mpsil_arr, weights=weights) )
+                else:
+                    scores.append( 0 )
 
         # -- SSD heterogeneity --
         if "heterogeneity" in metric_names:
@@ -407,3 +421,98 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
     )
 
     return( eval_metrics )
+
+def scan_component_n(gdf, feature_attrs, alg, nc0, scan_size_max=20, seed=0):
+    """
+    Given a GeoDataFrame with features to cluster and a passed-in spatial clustering algorithm, scan the number of clusters for each connected component of samples, and compute evaluation metrics.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for adjacency and feature columns given by feature_attrs.
+
+    feature_attrs : list of str
+        List of columns containing feature data.
+
+    alg : func
+        A wrapper from src/algorithms.py that performs a clustering algorithm on a connected component.
+
+    nc0 : int
+        Initial guess for the total number of clusters across all components. Algorithm will scan approximately from 0 to 2*nc0, proportionally distributed across components.
+
+    scan_size_max : int, optional
+        The maximum number of cluster numbers to try for each connected component. The function samples linearly from 0 to twice the proportionally assigned cluster number from nc0.
+
+    seed : int, optional
+        A random seed to feed into the clustering algorithm. Default is 0.
+
+    Returns
+    -------
+    all_eval_metrics : pd.DataFrame
+        DataFrame summarizing the evaluation metrics for each clustering run. Columns correspond to the evaluation metrics, and rows have a MultiIndex of the form ("c", "n") where "c" is the component index, and "n" is the number of clusters.
+    """
+    # Get list of connected components
+    w = Rook.from_dataframe(gdf,
+            use_index=True, silence_warnings=True
+    )
+    g = w.to_networkx()
+    ccs = list( nx.connected_components(g) )
+    component_nodes = [len(cc) for cc in ccs]
+
+    # Get nc scans for each connected component
+    component_nc_scans = []
+    component_nc0s = utils._proportionally_assign_clusters(
+        nc0, component_nodes
+    )
+    for component_nc0 in component_nc0s:
+        if component_nc0 == 1:
+            scan = [1,2,3]
+        else:
+            min_scan_step = int(np.ceil(2*component_nc0/scan_size_max))
+            scan = [
+                *range(min_scan_step, 2*component_nc0+min_scan_step, min_scan_step)
+            ]
+        component_nc_scans.append(scan)
+
+    # Iterate over connected components
+    all_eval_metrics = pd.DataFrame()
+    for i, component in enumerate(ccs):
+        # Get component-specific data
+        component_nc_scan = component_nc_scans[i]
+        ids = gdf.index[list(component)]
+        connected_gdf = gdf.loc[ids]
+
+        # Scan over desired nc values
+        clusters = pd.Series()
+        for nc in component_nc_scan:
+            # Perform clustering
+            cluster_attr = f"c{i}_n{nc}"
+            component_labels = alg(connected_gdf, feature_attrs, nc, seed=seed)
+            component_labels.name = cluster_attr
+            
+            # Combine results into a dataframe
+            if len(clusters) == 0: 
+                clusters = component_labels
+            else:
+                clusters = pd.concat([clusters, component_labels], axis=1)
+            
+        # Run evaluation metrics on df
+        cluster_attrs = clusters.columns
+        merged = connected_gdf.join(clusters)
+
+        # Get eval metrics and add columns for eventual MultiIndex
+        eval_metrics = tabulate_evaluation_metrics(
+            merged, feature_attrs, cluster_attrs,
+            metric_names="all"
+        )
+        eval_metrics["c"] = i
+        eval_metrics["n"] = component_nc_scan
+
+        if i == 0:
+            all_eval_metrics = eval_metrics
+        else:
+            all_eval_metrics = pd.concat([all_eval_metrics, eval_metrics], axis=0)
+
+    # Set up MultiIndex and return
+    all_eval_metrics = all_eval_metrics.set_index(["c","n"])
+    return( all_eval_metrics )

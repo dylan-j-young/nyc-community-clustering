@@ -378,3 +378,7 @@ def skater(gdf, attrs, n, seed=0):
     labels -= 1 # Zero-index
 
     return( labels )
+
+# Algorithm codes for column names
+for alg in [kmeans, sc_kmeans, sc_agg, skater, redcap_full_complete, redcap_full_average, redcap_full_ward]:
+    alg.code = alg.__name__.replace("_","-")
