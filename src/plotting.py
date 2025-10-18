@@ -770,7 +770,7 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     
     return( fig, ax )
 
-def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
+def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True, which_clusters="all"):
     """ 
     Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries.
 
@@ -787,6 +787,9 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
 
     color_clusters : bool, optional
         Flag that sets whether or not to color in the cluster geometries. If True, uses a greedy coloring algorithm from the networkx library. If False, plots only the outlines.
+
+    which_clusters : list or str, optional
+        Determines which clusters to plot. If "all", plots all clusters. Otherwise, which_clusters is a list of the cluster label names to plot.
     
     Returns
     -------
@@ -799,6 +802,11 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
     # Aggregate clusters into a gdf
     clusters = utils.aggregate_clusters(gdf, [], cluster_attr)
     clusters = clusters.to_crs(config.WEB_MERCATOR_EPSG)
+
+    # Restrict clusters gdf to those specified in which_clusters
+    if which_clusters != "all":
+        assert isinstance(which_clusters, list)
+        clusters = clusters.loc[which_clusters]
 
     # Make plot
     if figax is None:
@@ -823,14 +831,14 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
 
         # Plot
         clusters.plot(
-            ax=ax, color=colormap, edgecolor="w",
+            ax=ax, color=colormap, edgecolor="k",
             linewidth=0.25
         )
     else:
         # Plot only outlines
         clusters.plot(
-            ax=ax, facecolor="none", edgecolor="w",
-            linewidth=0.25
+            ax=ax, facecolor="none", edgecolor="k",
+            linewidth=0.5
         )
 
     # Annotate labels
@@ -843,6 +851,14 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True):
     ax.set_title(cluster_attr, fontsize=12)
     ax.axis("off")  # Remove axis labels for a clean map
     ax.set_aspect("equal")
+
+    # Zoom & bbox regularization
+    if len(clusters) == 1:
+        zoom_out = 1.5
+    else:
+        zoom_out = 1
+    ax = _zoom(ax, zoom_out)
+
     fig.tight_layout()
 
     # Add basemap
