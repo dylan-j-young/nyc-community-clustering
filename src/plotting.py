@@ -3,8 +3,10 @@ import pandas as pd
 import geopandas as gpd
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import silhouette_samples
 
-import libpysal
+from libpysal.weights import Rook, Queen
+import esda
 import networkx as nx
 import jenkspy
 
@@ -14,7 +16,9 @@ import matplotlib.colors as mplcolors
 import colorsys
 import contextily as ctx
 
-from src import config, utils
+import warnings
+
+from src import config, utils, evaluation
 
 def _plot_and_annotate(ax, tracts,
                        linewidth: float = 1,
@@ -770,7 +774,8 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     
     return( fig, ax )
 
-def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True, which_clusters="all"):
+def plot_clusters(gdf, cluster_attr, figax=None, 
+                  color_clusters=True, which_clusters="all"):
     """ 
     Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries.
 
@@ -817,8 +822,8 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True, which_clus
 
     if color_clusters:
         # Greedy color using networkx
-        w = libpysal.weights.Queen.from_dataframe(clusters, 
-                                                use_index=False, silence_warnings=True)
+        w = Queen.from_dataframe(clusters, 
+                                 use_index=False, silence_warnings=True)
         G = w.to_networkx()
         coloring = nx.algorithms.coloring.greedy_color(G)
 
@@ -869,6 +874,117 @@ def plot_clusters(gdf, cluster_attr, figax=None, color_clusters=True, which_clus
                     zoom_adjust=0
                     )
     
+    return( fig, ax )
+
+def plot_silhouette(gdf, feature_attrs, cluster_attr,
+                    sil_type="path-silhouette",
+                    figax=None):
+    """ 
+    Given a GeoDataFrame of tracts grouped into clusters, calculate the silhouette and plot it. There are a few options for the type of silhouette to plot:
+    - "silhouette": the silhouette as defined in sklearn.metrics.silhouette_samples()
+    - "path-silhouette": the path silhouette as defined in the esda package.
+    - "modified-psil": the custom-made path silhouette that equalizes the number of samples in each cluster when comparing the average distance.
+    - "modified-psil-bdy": the same as "modified-psil", but only samples touching a cluster boundary are plotted.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column, a set of feature columns, and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    feature_attrs : list of str
+        The list of column names corresponding to the feature space.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+    
+    sil_type : str, optional
+        The type of silhouette to plot. Options are "silhouette", "path-silhouette", "modified-psil", and "modified-psil-bdy". Default is "path-silhouette".
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Setup for path silhouette calculation
+    X = gdf[feature_attrs].to_numpy()
+    labels = gdf[cluster_attr].to_numpy()
+    W = Rook.from_dataframe(gdf,
+                            use_index=False, silence_warnings=True)
+
+    # Calculate path silhouette
+    with warnings.catch_warnings():
+        # Warnings from scipy.sparse about efficiency
+        warnings.filterwarnings("ignore")
+        if sil_type == "silhouette":
+            sils_arr = silhouette_samples(
+                X, labels
+            )
+        elif sil_type == "path-silhouette":
+            sils_arr = esda.path_silhouette(
+                X, labels, W
+            )
+        else:
+            sils_arr = evaluation.modified_path_silhouette(
+                X, labels, W
+            )
+        
+    # Remove non-boundary tracts if sil_type == "modified-psil-bdy"
+    if sil_type == "modified-psil-bdy":
+        # Find boundary tracts
+        is_bdy = np.zeros(len(labels)).astype(bool)      
+        for i in range(len(labels)):
+            lc = labels[i]
+            lc_neighbors = set(labels[W.neighbors[i]])
+            lc_neighbors.discard(lc)
+            is_bdy[i] = (len(lc_neighbors) > 0)
+        
+        # Replace non boundary tracts wit np.nan
+        sils_arr = np.where(~is_bdy, np.nan, sils_arr)
+
+    # Make Series and compute psil average
+    sils = pd.Series(sils_arr, 
+                     index=gdf.index,
+                     name=sil_type)
+    sil_mean = np.nanmean(sils_arr)
+
+    # Make plot
+    if figax is None:
+        figsize = (9,7)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Plot sils
+    merged = gdf.join(sils)
+    merged = merged.to_crs(config.WEB_MERCATOR_EPSG)
+    merged.plot(
+        column=sil_type,
+        cmap="inferno", vmin=-1, vmax=1,
+        linewidth=0,
+        ax=ax,
+        missing_kwds={
+            "color": "#C0C0C0",  # Color for NaN values
+            "linewidth": 0,
+            "label": "No Data"  # Label for NaN values in the legend
+        },
+        legend=True,
+        legend_kwds={
+            "ticks": [-1,-0.5,0,0.5,1]
+        }
+    )
+
+    # Add cluster outlines
+    __, __ = plot_clusters(gdf, cluster_attr, figax=(fig,ax),
+                           color_clusters=False)
+    
+    ax.set_title(f"{sil_type} for {cluster_attr}: mean={round(sil_mean,3)}", fontsize=12)
+
     return( fig, ax )
 
 # Colormaps for access outside of this script

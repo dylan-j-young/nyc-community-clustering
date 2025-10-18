@@ -5,7 +5,7 @@ import scipy.sparse as sp
 from scipy.sparse import csgraph as cg
 from scipy.sparse import SparseEfficiencyWarning
 from sklearn.metrics.pairwise import euclidean_distances, pairwise_distances
-from sklearn.metrics import davies_bouldin_score
+from sklearn.metrics import davies_bouldin_score, silhouette_samples, silhouette_score
 
 from libpysal.weights import Rook
 from libpysal.weights.util import WSP
@@ -295,8 +295,9 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
     Given a dataset with (potentially multiple) columns with cluster labels, evaluate these clusterings using various metrics defined by metric_names. Possible metrics include:
 
     - "polsby-popper"
-    - "davies-boudin-score"
+    - "davies-bouldin-score"
     - "contiguous-dbs"
+    - "silhouette"
     - "path-silhouette"
     - "modified-psil"
     - "modified-psil-bdy"
@@ -325,7 +326,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         DataFrame with columns given by the evaluation metrics used and indices given by the cluster column names.
     """
     if metric_names == "all":
-        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "path-silhouette", "modified-psil", "modified-psil-bdy", "heterogeneity"]
+        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "silhouette", "path-silhouette", "modified-psil", "modified-psil-bdy", "heterogeneity"]
 
     # Iterate over cluster label columns
     all_scores = []
@@ -355,6 +356,14 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         # -- Contiguous Davies-Boudin --
         if "contiguous-dbs" in metric_names:
             scores.append( contiguous_dbs(gdf, feature_attrs, label_attr) )
+        
+        # -- Average path silhouette --
+        if "silhouette" in metric_names:
+            sil = silhouette_score(
+                X, labels,
+                metric=euclidean_distances
+            )
+            scores.append( sil )
         
         # -- Average path silhouette --
         if "path-silhouette" in metric_names:
