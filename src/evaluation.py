@@ -40,7 +40,7 @@ def _calculate_truncated_sample_silhouettes(dist_matrix, labels):
     Returns
     -------
     scores : array-like of shape (n_samples,)
-        Modified path silhouette scores for each sample.
+        Truncated path silhouette scores for each sample.
     """
     # Get label names and counts
     label_names, label_freqs = np.unique(labels, return_counts=True)
@@ -86,7 +86,7 @@ def _calculate_truncated_sample_silhouettes(dist_matrix, labels):
     
     return(scores)
 
-def modified_path_silhouette(data, labels, W,
+def truncated_path_silhouette(data, labels, W,
                              D=None, metric=euclidean_distances):
     """ 
     Computes a custom-made, modified form of the path silhouette score. This function is a simplified and modified implementation of `esda.path_silhouette()`.
@@ -120,7 +120,7 @@ def modified_path_silhouette(data, labels, W,
     Returns
     -------
     scores : array-like of shape (n_samples,)
-        Modified path silhouette scores for each sample.    
+        Truncated path silhouette scores for each sample.    
     """
     # -- From esda.path_silhouette: get path-weighted distances (all_pairs) --
     if D is None:
@@ -160,7 +160,7 @@ def modified_path_silhouette(data, labels, W,
             if not (2 < n_subgraph_labels < (subgraph_W.n - 1)):
                 psils = subgraph_solutions = [0] * subgraph_W.n
             else:
-                subgraph_solutions = modified_path_silhouette(
+                subgraph_solutions = truncated_path_silhouette(
                     data=None,
                     labels=subgraph_labels,
                     W=subgraph_W,
@@ -299,8 +299,8 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
     - "contiguous-dbs"
     - "silhouette"
     - "path-silhouette"
-    - "modified-psil"
-    - "modified-psil-bdy"
+    - "truncated-psil"
+    - "truncated-psil-bdy"
     - "heterogeneity"
 
     Parameters
@@ -326,7 +326,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         DataFrame with columns given by the evaluation metrics used and indices given by the cluster column names.
     """
     if metric_names == "all":
-        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "silhouette", "path-silhouette", "modified-psil", "modified-psil-bdy", "heterogeneity"]
+        metric_names = ["polsby-popper", "davies-bouldin-score", "contiguous-dbs", "silhouette", "path-silhouette", "truncated-psil", "truncated-psil-bdy", "heterogeneity"]
 
     # Iterate over cluster label columns
     all_scores = []
@@ -361,7 +361,7 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
         if "silhouette" in metric_names:
             sil = silhouette_score(
                 X, labels,
-                metric=euclidean_distances
+                metric="euclidean"
             )
             scores.append( sil )
         
@@ -374,18 +374,18 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
             )
             scores.append( float(np.mean(psil_arr)) )
 
-        # -- Modified path silhouette --
-        if ("modified-psil" in metric_names) \
-            or ("modified-psil-bdy" in metric_names):
-            mpsil_arr = modified_path_silhouette(X, labels, W,
+        # -- Truncated path silhouette --
+        if ("truncated-psil" in metric_names) \
+            or ("truncated-psil-bdy" in metric_names):
+            mpsil_arr = truncated_path_silhouette(X, labels, W,
                                                 D=None, metric=euclidean_distances)
         
             # Average over all tracts
-            if "modified-psil" in metric_names:
+            if "truncated-psil" in metric_names:
                 scores.append( float(np.mean(mpsil_arr)) )
 
             # Only average over tracts on a cluster boundary
-            if "modified-psil-bdy" in metric_names:
+            if "truncated-psil-bdy" in metric_names:
                 weights = np.ones(len(labels)).astype(bool)
                 for i in range(len(labels)):
                     lc = labels[i]
@@ -395,9 +395,9 @@ def tabulate_evaluation_metrics(gdf, feature_attrs, label_attrs,
                 
                 scores.append( np.average(mpsil_arr, weights=weights) )
 
-            # -- SSD heterogeneity --
-            if "heterogeneity" in metric_names:
-                scores.append( heterogeneity(gdf, feature_attrs, label_attr) )
+        # -- SSD heterogeneity --
+        if "heterogeneity" in metric_names:
+            scores.append( heterogeneity(gdf, feature_attrs, label_attr) )
 
         all_scores.append(scores)
 

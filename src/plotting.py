@@ -883,8 +883,8 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
     Given a GeoDataFrame of tracts grouped into clusters, calculate the silhouette and plot it. There are a few options for the type of silhouette to plot:
     - "silhouette": the silhouette as defined in sklearn.metrics.silhouette_samples()
     - "path-silhouette": the path silhouette as defined in the esda package.
-    - "modified-psil": the custom-made path silhouette that equalizes the number of samples in each cluster when comparing the average distance.
-    - "modified-psil-bdy": the same as "modified-psil", but only samples touching a cluster boundary are plotted.
+    - "truncated-psil": the custom-made path silhouette that equalizes the number of samples in each cluster when comparing the average distance.
+    - "truncated-psil-bdy": the same as "truncated-psil", but only samples touching a cluster boundary are plotted.
 
     Parameters
     ----------
@@ -898,7 +898,7 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
         The name of the cluster label to group by.
     
     sil_type : str, optional
-        The type of silhouette to plot. Options are "silhouette", "path-silhouette", "modified-psil", and "modified-psil-bdy". Default is "path-silhouette".
+        The type of silhouette to plot. Options are "silhouette", "path-silhouette", "truncated-psil", and "truncated-psil-bdy". Default is "path-silhouette".
     
     figax : tuple of (fig, ax) or None, optional
         Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
@@ -930,12 +930,12 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
                 X, labels, W
             )
         else:
-            sils_arr = evaluation.modified_path_silhouette(
+            sils_arr = evaluation.truncated_path_silhouette(
                 X, labels, W
             )
         
-    # Remove non-boundary tracts if sil_type == "modified-psil-bdy"
-    if sil_type == "modified-psil-bdy":
+    # Remove non-boundary tracts if sil_type == "truncated-psil-bdy"
+    if sil_type == "truncated-psil-bdy":
         # Find boundary tracts
         is_bdy = np.zeros(len(labels)).astype(bool)      
         for i in range(len(labels)):
