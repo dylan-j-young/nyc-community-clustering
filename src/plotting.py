@@ -1002,6 +1002,7 @@ def plot_component_scans(metrics, component_names, suptitle):
 
     # Fill in figure
     ymin, ymax = [np.inf] * n_metrics, [-np.inf] * n_metrics
+    xlims = [None] * n_components
     for j, c in enumerate(components):
         metrics_j = metrics.loc[c]
         Y = metrics_j.to_numpy()
@@ -1015,25 +1016,28 @@ def plot_component_scans(metrics, component_names, suptitle):
             ymin[i] = min(ymin[i], np.min(Y[:,i]))
             ymax[i] = max(ymax[i], np.max(Y[:,i]))
         
-        # Set final plot ranges
+        # Set x plot ranges
         dx = np.max(X) - np.min(X)
-        xlims = (0, np.max(X)+dx*0.05)
-        dy = [ymax[i]-ymin[i] for i in range(n_metrics)]
-        ymin = [
-            0 if (ymin[i] == 0) else (ymin[i] - dy[i]*0.05) \
-            for i in range(n_metrics)
-        ]
-        ymax = [ymax[i] + dy[i]*0.05 for i in range(n_metrics)]
-        ylims = [*zip(ymin, ymax)]
+        xlims[j] = (0, np.max(X)+dx*0.05)
 
-        # Prettify plots
-        locator = ticker.MaxNLocator(nbins = 5, steps=[1,2,4,5,10], min_n_ticks=3)
+    # Set y plot ranges
+    dy = [ymax[i]-ymin[i] for i in range(n_metrics)]
+    ymin = [
+        0 if (ymin[i] == 0) else (ymin[i] - dy[i]*0.05) \
+        for i in range(n_metrics)
+    ]
+    ymax = [ymax[i] + dy[i]*0.05 for i in range(n_metrics)]
+    ylims = [*zip(ymin, ymax)]        
+
+    # Prettify plots
+    for j, c in enumerate(components):
+        locatorx = ticker.MaxNLocator(nbins = 5,
+                                      steps=[1,2,4,5,10], min_n_ticks=3)
         for i, m in enumerate(metric_names):
-            ax[i,j].set_xlim(xlims)
+            ax[i,j].set_xlim(xlims[j])
             ax[i,j].set_ylim(ylims[i])
             ax[i,j].grid()
-            ax[i,j].xaxis.set_major_locator(locator)
-            ax[i,j].yaxis.set_major_locator(locator)
+            ax[i,j].xaxis.set_major_locator(locatorx)
             ax[i,j].tick_params(axis="both", direction="in")
             
             if i == 0:
