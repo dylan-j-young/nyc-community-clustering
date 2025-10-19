@@ -852,8 +852,8 @@ def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
     attrs : list of str
         List of columns containing feature data.
 
-    nc : int
-        The total number of clusters. Must be at least as large as the number of connected components.
+    nc : int or list
+        Either the total number of clusters (int) or a list of the number of clusters for each connected component (list of positive ints). If the former, nc must be at least as large as the number of connected components. If the latter, the length of the list must be the same as the number of connected components.
 
     alg : func
         A wrapper from src/algorithms.py that performs a clustering algorithm on a connected component.
@@ -878,13 +878,19 @@ def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
     component_nodes = [len(cc) for cc in ccs]
 
     # Designate cluster counts to each component
-    component_ncs = _proportionally_assign_clusters(nc, component_nodes)
+    if isinstance(nc, int):
+        # Proportionally assign clusters
+        component_ncs = _proportionally_assign_clusters(nc, component_nodes)
+    else:
+        assert isinstance(nc, list)
+        assert len(nc) == len(ccs)
+        component_ncs = nc
 
     # Iterate over connected components
     clusters = pd.Series()
     for i, component in enumerate(ccs):
         # Keep track of nc and label counts
-        nc = component_ncs[i]
+        n = component_ncs[i]
         prev_ncs = sum(component_ncs[:i])
 
         # Get connected component gdf
@@ -892,7 +898,7 @@ def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
         connected_gdf = gdf.loc[ids]
 
         # Cluster using the provided clustering algorithm
-        labels = alg(connected_gdf, attrs, nc, seed=seed) + prev_ncs
+        labels = alg(connected_gdf, attrs, n, seed=seed) + prev_ncs
         if i > 0: 
             clusters = pd.concat([clusters, labels], axis=0)
         else:
