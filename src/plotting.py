@@ -989,6 +989,28 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
     return( fig, ax )
 
 def plot_component_scans(metrics, component_names, suptitle):
+    """
+    Given a metrics dataframe for a dataset with multiple disconnected components, create a grid of plots with shape (n_metrics, n_components). 
+
+    Parameters
+    ----------
+    metrics : pd.DataFrame
+        Dataset of metrics to plot. Columns correspond to the evaluation metrics, and rows have a MultiIndex of the form ("c", "n") where "c" is the component index, and "n" is the number of clusters.
+
+    component_names : list of str
+        List of names provided to each component. Provided to give semantic information about which component is which. Example: ["The Bronx", "Brooklyn/Queens", "Manhattan", "Rockaway", "Staten Island"].
+    
+    suptitle : str
+        Title of plot.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
     metric_names = metrics.columns.to_numpy()
 
     components = set(metrics.index.get_level_values(0))
@@ -1055,6 +1077,93 @@ def plot_component_scans(metrics, component_names, suptitle):
 
     fig.suptitle(suptitle)
     fig.tight_layout()
+    return(fig, ax)
+
+def plot_cluster_comparison(df, feature_attrs, cluster_attr, c0, c1,
+                            plotted_attrs="auto", figax=None):
+    """
+    Given a dataframe and two cluster labels, make a scatter plot comparing the two cluster samples along two feature directions. 
+    
+    By default the two feature directions chosen are the two with the greatest cluster separation, defined as the distance between the centroids divided by the sum of the standard deviations of each cluster (this is related to the Davies-Bouldin index, with a slightly different metric). However, custom feature attrs can be passed in through the optional parameter `plotted_attrs`.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataset to plot. Must have a set of feature columns (they don't need to be standardized), and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    feature_attrs : list of str
+        The list of column names corresponding to the feature space. They don't need to be standardized.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+    
+    c0 : int
+        The label of cluster 0 to plot.
+
+    c1 : int
+        The label of cluster 1 to plot.
+
+    plotted_attrs : str or list of str
+        Determines which features to plot. If "auto", calculates the two features with the greatest separation index between the clusters. Otherwise, expects a list of two strings corresponding to the feature attributes to plot.
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Get clusters
+    clusters = df.groupby(by=cluster_attr)
+    cluster_c0 = clusters.get_group(c0)
+    cluster_c1 = clusters.get_group(c1)
+
+    # Get matrices, centroids, and variances
+    X0 = cluster_c0[feature_attrs].to_numpy()
+    X1 = cluster_c1[feature_attrs].to_numpy()
+    mu0, mu1 = np.mean(X0, axis=0), np.mean(X1, axis=0)
+    std0, std1 = np.std(X0, axis=0), np.std(X1, axis=0)
+
+    # Get attrs to plot
+    if plotted_attrs == "auto":
+        # Find two dimensions with maximum separation scores
+        separations = np.abs(mu1 - mu0) / (std0 + std1)
+        dim_y, dim_x = np.argsort(separations)[-2:]
+        attr_y, attr_x = feature_attrs[dim_y], feature_attrs[dim_x]
+    else:
+        # Find two dimensions specified by plotted_attrs
+        assert isinstance(plotted_attrs, list)
+        assert len(plotted_attrs) == 2
+        attr_x, attr_y = plotted_attrs
+        dim_x = np.argmax(feature_attrs == attr_x)
+        dim_y = np.argmax(feature_attrs == attr_y)
+
+    # Make plot
+    if figax is None:
+        figsize = (6, 4.5)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+        
+    # Plot data
+    ax.scatter(X0[:,dim_x], X0[:,dim_y], s=5, c="C0", label=f"Cluster {c0}")
+    ax.scatter(X1[:,dim_x], X1[:,dim_y], s=5, c="C1", label=f"Cluster {c1}")
+    ax.scatter([mu0[dim_x]], [mu0[dim_y]], s=50, c="C0", edgecolor="k", label="Centroids")
+    ax.scatter([mu1[dim_x]], [mu1[dim_y]], s=50, c="C1", edgecolor="k")
+
+    # Prettify
+    ax.set_xlabel(attr_x)
+    ax.set_ylabel(attr_y)
+    ax.set_title("Comparing cluster features")
+    ax.legend()
+    ax.grid()
+    ax.tick_params(axis="both", direction="in")
+    fig.tight_layout()
+
     return(fig, ax)
 
 # Colormaps for access outside of this script
