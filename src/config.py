@@ -15,6 +15,9 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", 100)
 
 mpl.rc("hatch", color="k", linewidth=0.5)
+mpl.rcParams["figure.titlesize"] = "x-large"
+mpl.rcParams["xtick.direction"] = "in"
+mpl.rcParams["ytick.direction"] = "in"
 
 #### 
 # GEOGRAPHY

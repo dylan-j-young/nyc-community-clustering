@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import silhouette_samples
 
@@ -14,6 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.colors as mplcolors
 import matplotlib.ticker as ticker
+import matplotlib.gridspec as gridspec
 import colorsys
 import contextily as ctx
 
@@ -775,8 +777,9 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     
     return( fig, ax )
 
-def plot_clusters(gdf, cluster_attr, figax=None, 
-                  color_clusters=True, which_clusters="all"):
+def plot_clusters(gdf, cluster_attr,
+                  color_clusters=True, which_clusters="all",
+                  colormap="greedy", figax=None):
     """ 
     Given a GeoDataFrame of tracts grouped into clusters, plot the cluster geometries.
 
@@ -796,6 +799,9 @@ def plot_clusters(gdf, cluster_attr, figax=None,
 
     which_clusters : list or str, optional
         Determines which clusters to plot. If "all", plots all clusters. Otherwise, which_clusters is a list of the cluster label names to plot.
+
+    colormap : str or pd.Series, optional
+        Sets the colormap to color each cluster. If "greedy", uses a greedy coloring algorithm on the connectivity graph from the networkx package. Otherwise, expects a pd.Series object with indices matching the gdf and values corresponding to colors.
     
     Returns
     -------
@@ -822,18 +828,23 @@ def plot_clusters(gdf, cluster_attr, figax=None,
         fig, ax = figax
 
     if color_clusters:
-        # Greedy color using networkx
-        w = Queen.from_dataframe(clusters, 
-                                 use_index=False, silence_warnings=True)
-        G = w.to_networkx()
-        coloring = nx.algorithms.coloring.greedy_color(G)
+        if isinstance(colormap, str) and colormap == "greedy":
+            # Greedy color using networkx
+            cluster_labels = clusters.index.to_numpy()
+            w = Queen.from_dataframe(clusters, 
+                                    use_index=False, silence_warnings=True)
+            G = w.to_networkx()
+            coloring = nx.algorithms.coloring.greedy_color(G)
 
-        # Assign colors to the coloring (using the default matplotlib colors)
-        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-        colormap = pd.Series({
-            cluster_idx: default_colors[coloring[cluster_idx]] \
-            for cluster_idx in coloring
-        })
+            # Assign colors to the coloring (using the default matplotlib colors)
+            default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+            colormap = pd.Series({
+                cluster_labels[idx]: default_colors[coloring[idx]] \
+                for idx in coloring
+            })
+        else:
+            # Expect a colormap to be provided
+            assert isinstance(colormap, pd.Series)
 
         # Plot
         clusters.plot(
@@ -859,7 +870,7 @@ def plot_clusters(gdf, cluster_attr, figax=None,
     ax.set_aspect("equal")
 
     # Zoom & bbox regularization
-    if len(clusters) == 1:
+    if len(clusters) <= 3:
         zoom_out = 1.5
     else:
         zoom_out = 1
@@ -1079,7 +1090,7 @@ def plot_component_scans(metrics, component_names, suptitle):
     fig.tight_layout()
     return(fig, ax)
 
-def plot_cluster_comparison(df, feature_attrs, cluster_attr, c0, c1,
+def plot_cluster_scatter(df, feature_attrs, cluster_attr, which_clusters,
                             plotted_attrs="auto", figax=None):
     """
     Given a dataframe and two cluster labels, make a scatter plot comparing the two cluster samples along two feature directions. 
@@ -1097,12 +1108,9 @@ def plot_cluster_comparison(df, feature_attrs, cluster_attr, c0, c1,
     cluster_attr : str
         The name of the cluster label to group by.
     
-    c0 : int
-        The label of cluster 0 to plot.
-
-    c1 : int
-        The label of cluster 1 to plot.
-
+    which_clusters : list of int
+        Determines which clusters to plot. Assumed to be two elements long.
+    
     plotted_attrs : str or list of str
         Determines which features to plot. If "auto", calculates the two features with the greatest separation index between the clusters. Otherwise, expects a list of two strings corresponding to the feature attributes to plot.
     
@@ -1119,6 +1127,7 @@ def plot_cluster_comparison(df, feature_attrs, cluster_attr, c0, c1,
     """
     # Get clusters
     clusters = df.groupby(by=cluster_attr)
+    c0, c1 = which_clusters
     cluster_c0 = clusters.get_group(c0)
     cluster_c1 = clusters.get_group(c1)
 
@@ -1158,12 +1167,140 @@ def plot_cluster_comparison(df, feature_attrs, cluster_attr, c0, c1,
     # Prettify
     ax.set_xlabel(attr_x)
     ax.set_ylabel(attr_y)
-    ax.set_title("Comparing cluster features")
-    ax.legend()
+    ax.set_title("Feature scatter plot")
+    ax.legend(handlelength=1, labelspacing=0.25)
     ax.grid()
     ax.tick_params(axis="both", direction="in")
     fig.tight_layout()
 
+    return(fig, ax)
+
+def plot_cluster_bar(df, feature_attrs, cluster_attr, which_clusters,
+                     figax=None):
+    """
+    Given a dataframe and two cluster labels, make a bar plot comparing the two cluster samples along all (z-scored) feature directions.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataset to plot. Must have a set of feature columns (they don't need to be pre-standardized), and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    feature_attrs : list of str
+        The list of column names corresponding to the feature space. They don't need to be standardized.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+    
+    which_clusters : list of int
+        Determines which clusters to plot. Assumed to be two elements long.
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    
+    # Standardize features for z-score plotting
+    dfcopy = df.copy()
+    dfcopy[feature_attrs] = StandardScaler().fit_transform(
+        dfcopy[feature_attrs].to_numpy()
+    )
+
+    # Get centroids
+    centroids = utils.aggregate_clusters(dfcopy, feature_attrs=feature_attrs, cluster_attr=cluster_attr)
+    c0, c1 = which_clusters
+    centroid0 = centroids[feature_attrs].loc[c0].to_numpy()
+    centroid1 = centroids[feature_attrs].loc[c1].to_numpy()
+    x = np.arange(len(centroid0))
+
+    # Make plot
+    if figax is None:
+        figsize = (8,2)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Make bars and label axes
+    bar_width = 0.2
+    ax.bar(x - bar_width/2, centroid0, 
+        width=bar_width, label=f"Cluster {c0}", zorder=10)
+    ax.bar(x + bar_width/2, centroid1, 
+        width=bar_width, label=f"Cluster {c1}", zorder=10)
+    ax.set_xticks(x, feature_attrs, fontsize=8, rotation=15, ha="right", va="top")
+    ax.set_ylabel("z-score")
+    ax.set_title("Centroid feature bar plot")
+
+    # Prettify and return
+    locatory = ticker.MaxNLocator(nbins = 6, steps=[1, 5], min_n_ticks=4)
+    ax.yaxis.set_major_locator(locatory)
+    ax.grid()
+    ax.legend(handlelength=1, labelspacing=0.25)
+    fig.tight_layout()
+    return(fig, ax)
+
+def plot_cluster_comparison_summary(gdf, feature_attrs, cluster_attr,
+                                    which_clusters, plotted_attrs="auto"):
+    """
+    Given a spatially clustered dataset, compare the geography and features of two clusters and plot a summary consisting of three subplots. The first takes up the first row and shows a bar plot of each of the (z-scored) feature directions. The second, on the left of the second row, is a plot of the clusters. The third, on the right of the second row, is a scatter plot of the clusters in a 2D projection of feature space corresponding to the featured in plotted_attrs.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a valid geometry column, a set of feature columns (non-standardized), a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    feature_attrs : list of str
+        The list of column names corresponding to the feature space. They don't need to be standardized.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+    
+    which_clusters : list of int
+        Determines which clusters to plot. Assumed to be two elements long.
+    
+    plotted_attrs : str or list of str
+        Determines which features to plot. If "auto", calculates the two features with the greatest separation index between the clusters. Otherwise, expects a list of two strings corresponding to the feature attributes to plot.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Set up figure
+    fig = plt.figure(figsize=(7, 6))
+    gs = gridspec.GridSpec(2, 2, width_ratios=[3.25,3.75], height_ratios=[2,4])
+    ax1 = fig.add_subplot(gs[0,:])
+    ax2 = fig.add_subplot(gs[1,0])
+    ax3 = fig.add_subplot(gs[1,1])
+
+    # Bar plot
+    __, __ = plot_cluster_bar(gdf, feature_attrs, cluster_attr,
+                              which_clusters, figax=(fig, ax1))
+
+    # Geography plot
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    colormap = pd.Series(default_colors[:2], index=which_clusters)
+    __, __ = plot_clusters(gdf, cluster_attr,
+                           which_clusters=which_clusters, colormap=colormap,
+                           figax=(fig, ax2))
+    ax2.set_title("Cluster geographies")
+
+    # Scatter plot
+    __, __ = plot_cluster_scatter(gdf, feature_attrs, cluster_attr,
+                                  which_clusters, plotted_attrs=plotted_attrs,
+                                  figax=(fig, ax3))
+    
+    fig.suptitle(f"Cluster comparison for: {cluster_attr}")    
+    fig.tight_layout()
+    ax = np.array([[ax1,ax1],[ax2,ax3]])
     return(fig, ax)
 
 # Colormaps for access outside of this script
