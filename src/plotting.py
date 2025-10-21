@@ -417,7 +417,7 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds,
 
     Parameters
     ----------
-    col : pd.Series or np.ndarray
+    col : pd.Series
         Array-like of the data to plot. Assumed to be in the proper order to correlate with the tracts GeoDataFrame.
 
     tracts : gpd.GeoDataFrame
@@ -465,7 +465,8 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds,
         fig, ax = figax
 
     merged = tracts.copy()
-    merged = merged.join(col)
+    if col.name not in merged.columns:
+        merged = merged.join(col)
 
     # Convert to Web Mercator
     merged = merged.to_crs(config.WEB_MERCATOR_EPSG)
@@ -1159,10 +1160,29 @@ def plot_cluster_scatter(df, feature_attrs, cluster_attr, which_clusters,
         fig, ax = figax
         
     # Plot data
-    ax.scatter(X0[:,dim_x], X0[:,dim_y], s=5, c="C0", label=f"Cluster {c0}")
-    ax.scatter(X1[:,dim_x], X1[:,dim_y], s=5, c="C1", label=f"Cluster {c1}")
-    ax.scatter([mu0[dim_x]], [mu0[dim_y]], s=50, c="C0", edgecolor="k", label="Centroids")
-    ax.scatter([mu1[dim_x]], [mu1[dim_y]], s=50, c="C1", edgecolor="k")
+    ax.scatter(X0[:,dim_x], X0[:,dim_y], s=5, c="C0", label=f"Cluster {c0}",
+               zorder=1.7)
+    ax.scatter(X1[:,dim_x], X1[:,dim_y], s=5, c="C1", label=f"Cluster {c1}",
+               zorder=1.7)
+    ax.scatter([mu0[dim_x]], [mu0[dim_y]], s=50, c="C0", edgecolor="k",
+               zorder=1.8, label="Centroids")
+    ax.scatter([mu1[dim_x]], [mu1[dim_y]], s=50, c="C1", edgecolor="k",
+               zorder=1.8)
+    
+    # Confidence ellipses
+    confidence_level = 0.8
+    ellipse0_x, ellipse0_y = utils.get_confidence_ellipse(
+        X0[:,[dim_x, dim_y]], confidence_level
+    )
+    ellipse1_x, ellipse1_y = utils.get_confidence_ellipse(
+        X1[:,[dim_x, dim_y]], confidence_level
+    )
+    t = np.arange(0,1,0.001)
+    ax.fill(ellipse0_x(t), ellipse0_y(t),
+            color='C0', alpha=0.25, zorder=1.6,
+            label="80% confid.")
+    ax.fill(ellipse1_x(t), ellipse1_y(t),
+            color='C1', alpha=0.25, zorder=1.6)
 
     # Prettify
     ax.set_xlabel(attr_x)
@@ -1207,17 +1227,24 @@ def plot_cluster_bar(df, feature_attrs, cluster_attr, which_clusters,
     """
     
     # Standardize features for z-score plotting
-    dfcopy = df.copy()
-    dfcopy[feature_attrs] = StandardScaler().fit_transform(
-        dfcopy[feature_attrs].to_numpy()
+    df_std = df.copy()
+    df_std[feature_attrs] = StandardScaler().fit_transform(
+        df_std[feature_attrs].to_numpy()
     )
 
     # Get centroids
-    centroids = utils.aggregate_clusters(dfcopy, feature_attrs=feature_attrs, cluster_attr=cluster_attr)
+    centroids = utils.aggregate_clusters(df_std, feature_attrs=feature_attrs, cluster_attr=cluster_attr)
     c0, c1 = which_clusters
     centroid0 = centroids[feature_attrs].loc[c0].to_numpy()
     centroid1 = centroids[feature_attrs].loc[c1].to_numpy()
     x = np.arange(len(centroid0))
+
+    # Get standard deviations
+    clusters = df_std.groupby(by=cluster_attr)
+    cluster_c0 = clusters.get_group(c0)
+    cluster_c1 = clusters.get_group(c1)
+    std0 = cluster_c0[feature_attrs].std().to_numpy()
+    std1 = cluster_c1[feature_attrs].std().to_numpy()
 
     # Make plot
     if figax is None:
@@ -1228,10 +1255,17 @@ def plot_cluster_bar(df, feature_attrs, cluster_attr, which_clusters,
 
     # Make bars and label axes
     bar_width = 0.2
-    ax.bar(x - bar_width/2, centroid0, 
-        width=bar_width, label=f"Cluster {c0}", zorder=10)
-    ax.bar(x + bar_width/2, centroid1, 
-        width=bar_width, label=f"Cluster {c1}", zorder=10)
+    ax.bar(x - bar_width/2, centroid0,
+        width=bar_width, label=f"Cluster {c0}", zorder=2)
+    ax.errorbar(x - bar_width/2, centroid0, yerr=std0,
+                capsize=2, color="black", elinewidth=1, 
+                fmt=".", markersize=2, zorder=3)
+    ax.bar(x + bar_width/2, centroid1,
+        width=bar_width, label=f"Cluster {c1}", zorder=2)
+    ax.errorbar(x + bar_width/2, centroid1, yerr=std1,
+                capsize=2, color="black", elinewidth=1, 
+                fmt=".", markersize=2, zorder=3,
+                label="Std. dev.")
     ax.set_xticks(x, feature_attrs, fontsize=8, rotation=15, ha="right", va="top")
     ax.set_ylabel("z-score")
     ax.set_title("Centroid feature bar plot")

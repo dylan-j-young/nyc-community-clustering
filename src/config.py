@@ -18,6 +18,7 @@ mpl.rc("hatch", color="k", linewidth=0.5)
 mpl.rcParams["figure.titlesize"] = "x-large"
 mpl.rcParams["xtick.direction"] = "in"
 mpl.rcParams["ytick.direction"] = "in"
+mpl.rcParams["legend.fontsize"] = "small"
 
 #### 
 # GEOGRAPHY

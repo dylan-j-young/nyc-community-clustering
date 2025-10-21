@@ -907,6 +907,56 @@ def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
     clusters.name = name
     return( clusters )
 
+def get_confidence_ellipse(data, confidence_level):
+    """
+    Given two-column data, return parametric functions for the two-parameter confidence ellipse (from covariance data).
+
+    Parameters
+    ----------
+    data : np.ndarray, shape (N, 2)
+        The data array containing x and y columns.
+
+    confidence_level : float
+        The confidence level of the ellipse to plot. In the large N limit, the fraction of points inside the ellipse should approach confidence_level.
+
+    Returns
+    -------
+    x : func
+        Parametric function of one parameter (t) for the x coordinate. t is assumed to vary from 0 to 1.
+
+    y : func
+        Parametric function of one parameter (t) for the y coordinate. t is assumed to vary from 0 to 1.
+    """
+    # Calculate first- and second-order statistics
+    X, Y = data.T
+    x0, y0 = np.mean(X), np.mean(Y)
+    cov = np.cov(X,Y)
+    varx, vary = cov[0,0], cov[1,1]
+    covxy = cov[1,0]
+
+    # Eigenvectors
+    S = (varx + vary)
+    D = np.sqrt((varx - vary)**2 + 4*covxy**2)
+    lambda_plus = (S + D)/2
+    lambda_minus = (S - D)/2
+
+    # Ellipse angle
+    cos_2theta = (varx - vary) / D
+    cos_theta = np.sqrt((1 + cos_2theta)/2)
+    sin_theta = np.sign(covxy) * np.sqrt((1 - cos_2theta)/2)
+
+    # For a standard 2D normal distribution, find radius of confidence interval
+    R_unit = np.sqrt( 2*np.log( 1/(1-confidence_level) ) )
+
+    # Un-rotated, un-shifted ellipse
+    u = lambda t: R_unit * np.sqrt(lambda_plus) * np.cos(2*np.pi*t)
+    v = lambda t: R_unit * np.sqrt(lambda_minus) * np.sin(2*np.pi*t)
+
+    # Rotated, shifted ellipse
+    x = lambda t: u(t) * cos_theta - v(t) * sin_theta + x0
+    y = lambda t: u(t) * sin_theta + v(t) * cos_theta + y0
+    return( x, y )
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt
