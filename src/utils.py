@@ -840,6 +840,29 @@ def _proportionally_assign_clusters(nc, component_nodes):
 
     return( component_ncs )
 
+def get_connected_components(gdf):
+    """
+    Given a GeoDataFrame with Polygon or MultiPolygon geometries, analyze the contiguity of the elements and return the connected components of the graph.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Input dataset with a geometry column for adjacency.
+
+    Returns
+    -------
+    ccs : list of set
+        List of each connected component, consisting of a set of the integer locations of the elements in the component.
+    """
+    # Get list of connected components
+    w = Rook.from_dataframe(gdf,
+            use_index=True, silence_warnings=True
+    )
+    g = w.to_networkx()
+    ccs = list( nx.connected_components(g) )
+
+    return( ccs )
+
 def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
     """ 
     Given a GeoDataFrame of multiple discontiguous components, perform spatial clustering using the algorithm specified in the model wrapper on each connected component, and then combine into a single series.
@@ -870,11 +893,7 @@ def perform_multicomponent_cluster(gdf, attrs, nc, alg, name, seed=0):
         Series of cluster labels (from 0 to nc-1), indexed by the index of gdf.
     """
     # Get list of connected components
-    w = Rook.from_dataframe(gdf,
-            use_index=True, silence_warnings=True
-    )
-    g = w.to_networkx()
-    ccs = list( nx.connected_components(g) )
+    ccs = get_connected_components(gdf)
     component_nodes = [len(cc) for cc in ccs]
 
     # Designate cluster counts to each component

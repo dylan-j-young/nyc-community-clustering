@@ -452,11 +452,7 @@ def scan_component_n(gdf, feature_attrs, alg, nc0, scan_size_max=20, seed=0):
         DataFrame summarizing the evaluation metrics for each clustering run. Columns correspond to the evaluation metrics, and rows have a MultiIndex of the form ("c", "n") where "c" is the component index, and "n" is the number of clusters.
     """
     # Get list of connected components
-    w = Rook.from_dataframe(gdf,
-            use_index=True, silence_warnings=True
-    )
-    g = w.to_networkx()
-    ccs = list( nx.connected_components(g) )
+    ccs = utils.get_connected_components(gdf)
     component_nodes = [len(cc) for cc in ccs]
 
     # Get nc scans for each connected component
