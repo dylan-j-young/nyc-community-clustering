@@ -161,7 +161,7 @@ def plot_tracts(tracts,
     # Add basemap
     ctx.add_basemap(ax, 
                     crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
+                    source=config.DEFAULT_CTX_PROVIDER,
                     reset_extent=True,
                     zoom_adjust=zoom_adjust
                    )
@@ -219,7 +219,7 @@ def plot_local_subregion(local_tracts, borough_tracts):
     # Add basemap
     ctx.add_basemap(ax, 
                     crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
+                    source=config.DEFAULT_CTX_PROVIDER,
                     reset_extent=True,
                     zoom_adjust=1
                    )
@@ -474,6 +474,7 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds,
         column=col.name,
         cmap=cmap_quant,
         norm=norm,
+        alpha=0.75,
         linewidth=0,
         ax=ax,
         missing_kwds={
@@ -496,7 +497,7 @@ def plot_choropleth(col, tracts, n_classes = 6, cmap = mpl.cm.Reds,
     # Add basemap
     ctx.add_basemap(ax, 
                     crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
+                    source=config.DEFAULT_CTX_PROVIDER,
                     reset_extent=True
                     )
 
@@ -758,7 +759,7 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
 
     gdf.plot(
         ax=ax, column=attr, categorical=True, edgecolor="w",
-        linewidth=0.25, cmap=cmap,
+        linewidth=0.25, cmap=cmap, alpha=0.75,
         legend=False
     )
 
@@ -771,7 +772,72 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     # Add basemap
     ctx.add_basemap(ax, 
                     crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
+                    source=config.DEFAULT_CTX_PROVIDER,
+                    reset_extent=True,
+                    zoom_adjust=0
+                    )
+    
+    return( fig, ax )
+
+def plot_feature(gdf, attr, cmap="inferno", figax=None):
+    """ 
+    Given a GeoDataFrame, and a column specified by attr, plot the feature using a continuous (sequential) colormap.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column and a column with a name defined by attr, consisting of categorical values.
+
+    attr : str
+        The name of the categorical column to plot.
+
+    cmap : mpl.colors.Colormap or str, optional
+        The colormap to use, or a string accepted by matplotlib as a colormap. Default is "inferno".
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Make plot
+    if figax is None:
+        figsize = (9,7)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Convert to Web Mercator
+    gdf = gdf.to_crs(config.WEB_MERCATOR_EPSG)
+
+    # Normalize colormap for fraction attributes (otherwise do nothing)
+    if attr[:4] == "frac":
+        vmin, vmax = 0, 1
+    else:
+        vmin, vmax = None, None
+
+    gdf.plot(
+        ax=ax, column=attr, edgecolor="w",
+        linewidth=0.25, cmap=cmap, alpha=0.75,
+        vmin=vmin, vmax=vmax,
+        legend=True
+    )
+
+    # Improve visualization
+    ax.set_title(attr)
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+    fig.tight_layout()
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=config.DEFAULT_CTX_PROVIDER,
                     reset_extent=True,
                     zoom_adjust=0
                     )
@@ -850,7 +916,7 @@ def plot_clusters(gdf, cluster_attr,
         # Plot
         clusters.plot(
             ax=ax, color=colormap, edgecolor="k",
-            linewidth=0.25
+            linewidth=0.25, alpha=0.5
         )
     else:
         # Plot only outlines
@@ -882,7 +948,7 @@ def plot_clusters(gdf, cluster_attr,
     # Add basemap
     ctx.add_basemap(ax, 
                     crs=config.WEB_MERCATOR_EPSG,
-                    source=ctx.providers.CartoDB.Positron,
+                    source=config.DEFAULT_CTX_PROVIDER,
                     reset_extent=True,
                     zoom_adjust=0
                     )
@@ -979,6 +1045,7 @@ def plot_silhouette(gdf, feature_attrs, cluster_attr,
     merged.plot(
         column=sil_type,
         cmap="inferno", vmin=-1, vmax=1,
+        alpha=0.75,
         linewidth=0,
         ax=ax,
         missing_kwds={

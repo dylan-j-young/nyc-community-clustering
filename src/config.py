@@ -1,13 +1,14 @@
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
+import contextily as ctx
 
 import os
 from pathlib import Path
 import yaml
 
 #### 
-# GLOBAL SETTINGS
+# PANDAS AND PLOTTING
 ####
 
 # Pandas settings
@@ -19,6 +20,12 @@ mpl.rcParams["figure.titlesize"] = "x-large"
 mpl.rcParams["xtick.direction"] = "in"
 mpl.rcParams["ytick.direction"] = "in"
 mpl.rcParams["legend.fontsize"] = "small"
+
+# Basemaps
+CTX_CARTODB_VOYAGER = ctx.providers.CartoDB.Voyager
+CTX_CARTODB_POSITRON = ctx.providers.CartoDB.Positron
+CTX_ESRI_WORLDSTREETMAP = ctx.providers.Esri.WorldStreetMap
+DEFAULT_CTX_PROVIDER = CTX_CARTODB_VOYAGER
 
 #### 
 # GEOGRAPHY

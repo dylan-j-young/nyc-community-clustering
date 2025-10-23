@@ -976,6 +976,32 @@ def get_confidence_ellipse(data, confidence_level):
     y = lambda t: u(t) * sin_theta + v(t) * cos_theta + y0
     return( x, y )
 
+def get_subset_by_clusters(gdf, cluster_attr, which_clusters):
+    """
+    Given a clustered GeoDataFrame, return a subset corresponding to the cluster labels specified in which_clusters.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    cluster_attr : str
+        The name of the cluster label to group by.
+
+    which_clusters : list
+        List of the cluster labels to keep.
+
+    Returns
+    -------
+    gdf_subset : gpd.GeoDataFrame
+        GeoDataFrame of only those tracts in the specified subset of clusters.
+    """
+    clusters = gdf.groupby(by=cluster_attr)
+    gdf_subset = pd.concat([
+        clusters.get_group(idx) for idx in which_clusters
+    ], axis=0)
+    return(gdf_subset)
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt
