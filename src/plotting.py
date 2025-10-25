@@ -779,7 +779,7 @@ def plot_categorical(gdf, attr, cmap="default", figax=None):
     
     return( fig, ax )
 
-def plot_feature(gdf, attr, cmap="inferno", figax=None):
+def plot_feature(gdf, attr, cmap="inferno", vbounds=(None, None), figax=None):
     """ 
     Given a GeoDataFrame, and a column specified by attr, plot the feature using a continuous (sequential) colormap.
 
@@ -793,6 +793,9 @@ def plot_feature(gdf, attr, cmap="inferno", figax=None):
 
     cmap : mpl.colors.Colormap or str, optional
         The colormap to use, or a string accepted by matplotlib as a colormap. Default is "inferno".
+
+    vbounds : tuple, optional
+        Sets the normalization of the colormap in the form (vmin, vmax). If either is None, set automatically. "frac" attributes are automatically scaled to (0, 1) unless otherwise specified. Default is (None, None).
     
     figax : tuple of (fig, ax) or None, optional
         Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
@@ -819,7 +822,7 @@ def plot_feature(gdf, attr, cmap="inferno", figax=None):
     if attr[:4] == "frac":
         vmin, vmax = 0, 1
     else:
-        vmin, vmax = None, None
+        vmin, vmax = vbounds
 
     gdf.plot(
         ax=ax, column=attr, edgecolor="w",
@@ -916,20 +919,20 @@ def plot_clusters(gdf, cluster_attr,
         # Plot
         clusters.plot(
             ax=ax, color=colormap, edgecolor="k",
-            linewidth=0.25, alpha=0.5
+            linewidth=0, alpha=0.5
         )
     else:
         # Plot only outlines
         clusters.plot(
             ax=ax, facecolor="none", edgecolor="k",
-            linewidth=0.5
+            linewidth=1
         )
 
     # Annotate labels
     for idx, row in clusters.iterrows():
         ax.annotate(text=str(int(idx)), 
                     xy=row.geometry.representative_point().coords[0],
-                    horizontalalignment='center', fontsize=8, color='black')
+                    horizontalalignment='center', fontsize="small", color='black')
 
     # Improve visualization
     ax.set_title(cluster_attr, fontsize=12)
@@ -937,8 +940,8 @@ def plot_clusters(gdf, cluster_attr,
     ax.set_aspect("equal")
 
     # Zoom & bbox regularization
-    if len(clusters) <= 3:
-        zoom_out = 1.5
+    if len(clusters) <= 2:
+        zoom_out = 1
     else:
         zoom_out = 1
     ax = _zoom(ax, zoom_out)
@@ -1345,6 +1348,71 @@ def plot_cluster_bar(df, feature_attrs, cluster_attr, which_clusters,
     fig.tight_layout()
     return(fig, ax)
 
+def plot_ntas(gdf, annotate=True, annotation_col="ntaabbrev", figax=None):
+    """ 
+    Given a GeoDataFrame of NTAs, plot outlines.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset to plot. Must have a geometry column and a column with a name defined by cluster_attr, consisting of cluster labels.
+
+    annotate : bool, optional
+        Sets whether or not to annotate the NTAs with names. Default is False.
+
+    annotation_col : str, optional
+        The name of the column to annotate with (only if annotate is True). Default is "ntaabbrev".
+    
+    figax : tuple of (fig, ax) or None, optional
+        Optionally passes in an existing tuple of matplotlib fig and ax objects for the plot. If figax is None, the function generates a new fig and ax. Default is None.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plot.
+
+    ax : matplotlib.axes._axes.Axes
+        The matplotlib Axes object with the plotted GeoDataFrame and basemap.
+    """
+    # Convert CRS
+    gdf = gdf.to_crs(config.WEB_MERCATOR_EPSG)
+
+    # Make plot
+    if figax is None:
+        figsize = (9,7)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig, ax = figax
+
+    # Plot only outlines
+    gdf.plot(
+        ax=ax, facecolor="none", edgecolor="gray",
+        linewidth=0.5, linestyle="dashed"
+    )
+
+    # Optional: annotate NTAs
+    if annotate:
+        for idx, row in gdf.iterrows():
+            ax.annotate(text=row[annotation_col], 
+                        xy=row.geometry.representative_point().coords[0],
+                        horizontalalignment='center', fontsize="xx-small", color='gray', zorder=1.5, clip_on=True)
+
+    # Improve visualization
+    ax.axis("off")  # Remove axis labels for a clean map
+    ax.set_aspect("equal")
+
+    fig.tight_layout()
+
+    # Add basemap
+    ctx.add_basemap(ax, 
+                    crs=config.WEB_MERCATOR_EPSG,
+                    source=config.DEFAULT_CTX_PROVIDER,
+                    reset_extent=True,
+                    zoom_adjust=0
+                    )
+    
+    return( fig, ax )
+
 def plot_cluster_comparison_summary(gdf, feature_attrs, cluster_attr,
                                     which_clusters, plotted_attrs="auto"):
     """
@@ -1376,8 +1444,8 @@ def plot_cluster_comparison_summary(gdf, feature_attrs, cluster_attr,
         The matplotlib Axes object with the plotted GeoDataFrame and basemap.
     """
     # Set up figure
-    fig = plt.figure(figsize=(7, 6))
-    gs = gridspec.GridSpec(2, 2, width_ratios=[3.25,3.75], height_ratios=[2,4])
+    fig = plt.figure(figsize=(8, 6.5))
+    gs = gridspec.GridSpec(2, 2, width_ratios=[4,4], height_ratios=[2,4.5])
     ax1 = fig.add_subplot(gs[0,:])
     ax2 = fig.add_subplot(gs[1,0])
     ax3 = fig.add_subplot(gs[1,1])

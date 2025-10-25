@@ -95,6 +95,10 @@ AREAWATER = [(
     ) for fips in FIPS_DICT.keys()
 ]
 
+# GeoJSON: NYC Neighbhorhood Tabulation Areas (NTAs)
+NYC_NTAS_RAW = RAW_DATA_DIR / "nyc_ntas.json"
+NYC_NTAS_CLEAN = INTERIM_DATA_DIR / "nyc_ntas.parquet"
+
 # 2020 Census Demographic Profile
 DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
 DECENNIAL2020_DP_INIT_CLEAN = INTERIM_DATA_DIR / "decennial2020_dp_init_clean.parquet"

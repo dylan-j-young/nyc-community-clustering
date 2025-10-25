@@ -10,3 +10,4 @@ ipykernel
 contextily
 pyarrow
 python-dotenv
+sodapy

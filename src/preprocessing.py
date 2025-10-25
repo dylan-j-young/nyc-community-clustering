@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Optional, Sequence
 from dotenv import load_dotenv
+from sodapy import Socrata
+from shapely.geometry import shape
 
 from src import config, utils
 
@@ -325,6 +327,65 @@ def initial_clean_2023_acs_5yr_select():
     df.to_parquet(config.ACS5YR2023_INIT_CLEAN)
 
     return( df )
+
+def fetch_nyc_NTAs():
+    """
+    Get 2020 Neighborhood Tabulation Areas (NTAs) from data.cityofnewyork.us for reference. Save raw JSON at the location specified in config.NYC_NTAS_RAW.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    results : list
+        The raw data returned from the API request and saved to file
+    """
+
+    # Unauthenticated client only works with public data sets. Note 'None'
+    # in place of application token, and no username or password:
+    client = Socrata("data.cityofnewyork.us", None)
+
+    # Example authenticated client (needed for non-public datasets):
+    # client = Socrata(data.cityofnewyork.us,
+    #                  MyAppToken,
+    #                  username="user@example.com",
+    #                  password="AFakePassword")
+
+    # First 2000 results, returned as JSON from API / converted to Python list of
+    # dictionaries by sodapy.
+    results = client.get("9nt8-h7nd", limit=2000)
+
+    # Write to file
+    import json
+    with open(config.NYC_NTAS_RAW, "w") as f:
+        json.dump(results, f)
+
+    return(results)
+
+def clean_nyc_NTAs():
+    """
+    Load in JSON from fetch_nyc_NTAs() and convert it to a GeoDataFrame. Save at the location specified by config.NYC_NTAS_CLEAN.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    gdf : gpd.GeoDataFrame
+        The GeoDataFrame constructed from the raw data, which was saved to file.
+    """
+    # Read in JSON
+    df = pd.read_json(config.NYC_NTAS_RAW)
+
+    # Make a proper geometry column from provided GeoJSON column
+    df = df.rename({"the_geom": "geometry"}, axis=1)
+    df["geometry"] = df.apply(lambda row: shape(row["geometry"]), axis=1)
+
+    # Initialize the GeoDataFrame and save
+    gdf = gpd.GeoDataFrame(df, crs=config.WGS84_EPSG, geometry="geometry")
+    gdf.to_parquet(config.NYC_NTAS_CLEAN)
+
+    return(gdf)
 
 if __name__ == "__main__":
     # # Test clean_tracts()
