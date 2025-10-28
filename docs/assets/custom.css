@@ -1,0 +1,30 @@
+/* Outer relative div, defining the map size */
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 70vh;
+    /* 70% of viewport */
+    max-height: 1000px;
+    /* for extra-large screens */
+    min-height: 400px;
+    /* for extra-small screens */
+    overflow: hidden;
+    transition: height 0.3s ease;
+}
+
+/* Inner iframe element, filling the outer div */
+.map-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+@media (max-width: 600px) {
+    .map-container {
+        height: 85vh;
+    }
+
+    /* taller on phones */
+}
