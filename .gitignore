@@ -19,9 +19,9 @@ models/
 # Info (manuals, etc.)
 info/
 
-# Scratch notebooks 
-## Promote successful approaches to official notebooks and functions in src/ 
+# Notebooks for scratch work and for site generation
 notebooks/scratch_*.ipynb
+notebooks/03_writeup-assets.ipynb
 
 # Jekyll artifacts (site hosting)
 _site/

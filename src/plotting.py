@@ -819,8 +819,11 @@ def plot_feature(gdf, attr, cmap="inferno", vbounds=(None, None), figax=None):
     gdf = gdf.to_crs(config.WEB_MERCATOR_EPSG)
 
     # Normalize colormap for fraction attributes (otherwise do nothing)
-    if attr[:4] == "frac":
-        vmin, vmax = 0, 1
+    if vbounds == (None, None):
+        if attr[:4] == "frac":
+            vmin, vmax = 0, 1
+        else:
+            vmin, vmax = vbounds
     else:
         vmin, vmax = vbounds
 
@@ -1386,7 +1389,7 @@ def plot_ntas(gdf, annotate=True, annotation_col="ntaabbrev", figax=None):
 
     # Plot only outlines
     gdf.plot(
-        ax=ax, facecolor="none", edgecolor="gray",
+        ax=ax, facecolor="none", edgecolor="#444444",
         linewidth=0.5, linestyle="dashed"
     )
 
@@ -1395,7 +1398,7 @@ def plot_ntas(gdf, annotate=True, annotation_col="ntaabbrev", figax=None):
         for idx, row in gdf.iterrows():
             ax.annotate(text=row[annotation_col], 
                         xy=row.geometry.representative_point().coords[0],
-                        horizontalalignment='center', fontsize="xx-small", color='gray', zorder=1.5, clip_on=True)
+                        horizontalalignment='center', fontsize="xx-small", color="#444444", zorder=1.5, clip_on=True)
 
     # Improve visualization
     ax.axis("off")  # Remove axis labels for a clean map
