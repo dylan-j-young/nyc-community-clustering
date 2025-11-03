@@ -5,9 +5,9 @@ title: NYC Community Clustering
 
 # Demographic Community Clustering of NYC
 
-New York has a rich tapestry of ever-changing neighbhorhoods. These regions act as a lens to help us better understand the city's communities, and because of this people often [have strong opinions](https://www.nytimes.com/interactive/2023/10/29/upshot/new-york-neighborhood-guide.html) on how they should be defined. But neighbhorhoods don't tell the full story, and real communities aren't always confined to these named boundaries. Understanding how people group together, independent of what we call an area, is a crucial part of learning the values and needs of a city at the local level.
+New York has a rich tapestry of ever-changing neighborhoods. These regions act as a lens to help us better understand the city's communities, and because of this people often [have strong opinions](https://www.nytimes.com/interactive/2023/10/29/upshot/new-york-neighborhood-guide.html) on how they should be defined. But neighborhoods don't tell the full story, and real communities aren't always confined to these named boundaries. Understanding how people group together, independent of what we call an area, is a crucial part of learning the values and needs of a city at the local level.
 
-In this project, I study these communities through an alternate lens: demographic and economic similarities. I harness machine learning methods to spatially cluster the city into geographically compact regions of similar people and households. Investigating how these clusters differ from the usual neighbhorhood boundaries reveals some interesting insights into the city's human geography. If that sounds interesting to you, read on!
+In this project, I study these communities through an alternate lens: demographic and economic similarities. I harness machine learning methods to spatially cluster the city into geographically compact regions of similar people and households. Investigating how these clusters differ from the usual neighborhood boundaries reveals some interesting insights into the city's human geography. If that sounds interesting to you, read on!
 
 ## Gathering data
 
@@ -48,7 +48,9 @@ Instead, I used an algorithm belonging to a family of methods called REDCAP<sup>
 - The "path" silhouette score<sup><a href="#ref-pathsilhouette">2</a></sup> (combination of both). 
     - I actually modified the metric to fix some perceived issues (documented in the project notebooks for anyone who's curious).
 
-Check out the results in the map below!
+## Results
+
+Check out the results of my clustering algorithm in this map!
 
 <!-- Ooh interactive folium map, fancy -->
 <figure class="responsive-figure map-figure">
@@ -60,7 +62,7 @@ Check out the results in the map below!
         allowfullscreen
     ></iframe>
   </div>
-  <figcaption>Interactive map of NYC cluster assignments. Neighbhorhoods are defined as <a href="https://www.nyc.gov/content/planning/pages/resources/datasets/neighborhood-tabulation">NYC's Neighborhood Tabulation Areas (NTAs)</a>, which are not official neighbhorhood boundaries but roughly describe their extent. I used three different numbers of clusters ("low", "medium", and "high" counts) to show different levels of structure. </figcaption>
+  <figcaption>Interactive map of NYC cluster assignments. neighborhoods are defined as <a href="https://www.nyc.gov/content/planning/pages/resources/datasets/neighborhood-tabulation">NYC's Neighborhood Tabulation Areas (NTAs)</a>, which are not official neighborhood boundaries but roughly describe their extent. I used three different numbers of clusters ("low", "medium", and "high" counts) to show different levels of structure. </figcaption>
 </figure>
 
 ## What can we learn from this?
@@ -68,52 +70,47 @@ Check out the results in the map below!
 There's a ton of fascinating structure here, and I dig into many details [in the project repository](https://github.com/dylan-j-young/nyc-community-clustering/). Here, I'll highlight two examples.
 
 ### Gentrification Boundaries in Williamsburg
-Williamsburg, with its [complicated recent demographic history](https://www.nytimes.com/interactive/2024/01/29/style/williamsburg-brooklyn-history-timeline.html), presents an interesting case study for clustering.
+Williamsburg has experienced [rapid demographic change](https://www.nytimes.com/interactive/2024/01/29/style/williamsburg-brooklyn-history-timeline.html) in recent years. In the present day, these dynamics are reflected by the existence of three distinct clusters in the neighborhood:
 
 <!-- Williamsburg figure -->
 <figure class="responsive-figure">
     <img 
         src="{{ '/figures/williamsburg.png' | relative_url }}"
-        alt="Comparing demographic clusters in Williamsburg. Left: map of three cluster geographies superimposed on neighbhorhood boundaries. Right: scatter plot of census tracts in two such clusters, comparing the white population fraction and the median household income."
+        alt="Clusters in Williamsburg and Greenpoint (medium count). This figure has two panels, the left a map titled Cluster Geographies, and the right a plot titled Feature Scatter Plot."
     />
     <figcaption>
-        Test.
+        Comparing demographic clusters in Williamsburg. Notice how cluster 29 (blue) is consistently whiter and wealthier than cluster 23 (orange).
     </figcaption>
 </figure>
 
-### The Demographics of Housing Zones in Forest Hills
+The green cluster represents the Hasidic Jewish community in South Williamsburg. It's strongly internally homogeneous, and the algorithm readily detects its distinctively high fraction of married households and hyperlocal commuters who walk to work. 
 
-Zoning laws can have a strong impact on where different demographics tend to cluster. 
+Less obvious at a glance is the boundary between the blue and orange clusters, which lies somewhere in eastern Williamsburg. Diving into feature space with the scatter plot reveals the reason: two classic gentrification markers, median household income and the fractional population of white residents, undergo a transition in this area that separate central Williamsburg and Greenpoint from eastern Williamsburg and Bushwick. The cluster boundaries give us a sense of roughly how far "peak" gentrification extends in the neighborhood.
 
--> Married households
+### Housing Zone Demographics in Forest Hills
+
+The housing stock of an area can have a strong impact on its demographics. Take the Rego Park and Forest Hills area as an example: here, my clustering algorithm detects a natural boundary splitting both of these neighborhoods down the middle:
 
 <!-- Forest Hills figure -->
 <figure class="responsive-figure">
     <img 
         src="{{ '/figures/foresthills.png' | relative_url }}"
-        alt="Comparing two demographic clusters in Forest Hills. Left: map of the cluster geographies superimposed on neighbhorhood boundaries. Right: scatter plot of census tracts in each cluster, comparing the fraction of 20+ unit buildings and the fraction of married households."
+        alt="Clusters in Forest Hills and Rego Park (high count). This figure has two panels, the left a map titled Cluster Geographies, and the right a plot titled Feature Scatter Plot."
     />
     <figcaption>
-        Test.
+        Comparing two demographic clusters in Forest Hills and Rego Park. In this area, the fraction of married households shows a strong negative correlation with the fraction of 20+ unit apartment buildings, and this defines the boundary between clusters 54 (orange) and 31 (blue).
     </figcaption>
 </figure>
 
-(The lower density areas in the northeast share Census tracts with higher density blocks and are therefore harder to detect at this level of granularity).
+This boundary, roughly following the LIRR line south of Queens Boulevard, separates Census tracts with high density housing to the north (blue cluster) from lower density housing to the south (orange cluster), consistent with the [different housing zones](https://zola.planninglabs.nyc/#13/40.71721/-73.82945) in the region. Feature space shows that married households consistently prefer living in the orange cluster, indicating a community with a more suburban feel compared with the transit corridor in the north. 
 
-## Conclusions (100 word goal)
+The takeaway: these two communities are defined not by neighbhorhood boundaries but rather by transit geography and housing policy, and my clustering algorithm can detect them!
 
-*Highlight the takeaways from your analysis:*
-- *What did the clustering reveal about NYC communities?* 
-- *Any implications or next steps?*
+## Conclusion
 
-Potential ways to use this data:
+This project taught me that, given the right features and clustering methodology, we can unveil real demographic structure that sheds light on the city's geography. Looking forward, these clusters can act as natural filters for analyzing other data (like the American Community Survey) to teach us a ton of information about these local demographic communities---information like educational attainment, type of employment, insurance coverage, and more. Someone could also look for needs or inequities at the community level. For example, are some demographic communities food or transit deserts, even if their neighbhorhoods are well-served in aggregate? Are there regions with many elderly but poor access to nearby healthcare?
 
-- Using these clusters as a geographic filter for city-wide data can reveal community-level needs, issues, and inequities.
-    - Food deserts, transit deserts, demand for businesses, demand for city services at a community level
-(why is community level so important? Need to clarify my thoughts on this.)
-
-
-If you want to dive into the data yourself, check out my GitHub project [here](https://github.com/dylan-j-young/nyc-community-clustering/)!
+For now, though, this ends my exploration. If you want to dive into the data yourself, check out my GitHub project [here](https://github.com/dylan-j-young/nyc-community-clustering/)!
 
 ---
 

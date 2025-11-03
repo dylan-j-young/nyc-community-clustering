@@ -10,4 +10,9 @@ ipykernel
 contextily
 pyarrow
 python-dotenv
+pyyaml
+libpysal
+jenkspy
+spopt
+pygeoda
 sodapy
