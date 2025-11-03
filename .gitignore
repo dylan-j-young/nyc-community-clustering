@@ -21,10 +21,7 @@ info/
 
 # Notebooks for scratch work and for site generation
 notebooks/scratch_*.ipynb
-notebooks/03_writeup-assets.ipynb
 
-# Jekyll artifacts (site hosting)
-_site/
-.sass-cache/
-.jekyll-cache/
-.jekyll-metadata
+# Project summary site assets
+notebooks/03_writeup-assets.ipynb
+docs/
