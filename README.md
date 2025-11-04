@@ -10,7 +10,6 @@ The project has the following simplified root-level structure, roughly inspired 
 
 - `config/` (variable names for Census data tables)
 - `data/` (*CREATED UPON RUNNING NOTEBOOK 00. Holds Census data and geometries)
-- `docs/` (data for the project summary site; not necessary for local repo)
 - `models/` (*CREATED UPON RUNNING NOTEBOOK 00. Holds cluster labels for various models and hyperparameters)
 - `notebooks/` (main notebooks for the project. Running these in order will walk you through the entire project)
 - `src/` (Python scripts used in the notebooks, treated as a module to import)
