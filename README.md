@@ -1,6 +1,6 @@
 # Mapping NYC Communities with Demographic Data
 
-Welcome! This project studies demographic, housing, and economic data from the 2020 Decennial US Census and the 2023 5-Year American Community Survey (ACS) and uses spatial clustering to identify communities of similar people and households. This repository holds my code and notebooks. To read a high-level summary of the project, check out my GitHub Pages site [here](https://dylan-j-young.github.io/projects/nyc-community-clustering/)!
+Welcome! This project studies demographic, housing, and economic data from the 2020 Decennial US Census and the 2023 5-Year American Community Survey (ACS) and uses spatial clustering to identify communities of similar people and households. This repository holds my code and notebooks, which you can replicate by following the setup instructions below. To read a high-level summary of the project, check out my GitHub Pages site [here](https://dylan-j-young.github.io/projects/nyc-community-clustering/).
 
 DISCLAIMER: This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
 
