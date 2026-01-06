@@ -1002,6 +1002,55 @@ def get_subset_by_clusters(gdf, cluster_attr, which_clusters):
     ], axis=0)
     return(gdf_subset)
 
+def get_labels_from_geometries(gdf, geoms, name="geom_labels"):
+    """
+    Given a GeoDataFrame gdf containing observations and a set of predefined geometries, return a Series object indexed by the same index as gdf and containing labels assigning observations to the different geometries based on geographical overlap.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        Dataset with an index and geometry column.
+
+    geoms : gpd.GeoSeries
+        Geometry column describing pre-defined regions that ideally tile the area.
+
+    name : str, optional
+        Specifies a name for the label column. Default is "geom_labels".
+
+    Returns
+    -------
+    geom_labels : pd.Series
+        Series object indexed by the same index as gdf, with labels corresponding with maximum overlap with regions in geoms.
+    """
+    index_name = gdf.index.name if not (gdf.index.name is None) else "index"
+    geoms_gdf = gpd.GeoDataFrame(geometry=geoms)
+    geoms_index = geoms_gdf.index.name if not (geoms.index.name is None) else "geoms_id"
+    geoms_gdf = geoms_gdf.reset_index()
+    if "index" in geoms_gdf:
+        geoms_gdf = geoms_gdf.rename(columns={"index": geoms_index})
+
+    # Ensure same CRS
+    gdf = gdf.set_crs(config.WGS84_EPSG)
+    geoms_gdf = geoms_gdf.set_crs(config.WGS84_EPSG)
+
+    # Find intersections between gdf regions and geoms regions
+    intersection = gpd.overlay(
+        gdf.reset_index(), geoms_gdf,
+        how="intersection"
+    )
+
+    # Select maximal area geom for each observation
+    intersection["overlap_area"] = intersection.geometry.area
+    idx = intersection.groupby(index_name)["overlap_area"].idxmax()
+    gdf_with_labels = intersection.loc[idx].set_index(index_name)
+    gdf_with_labels[name] = gdf_with_labels[geoms_index].factorize()[0]
+    gdf_with_labels = gdf_with_labels.drop(columns=[
+        "overlap_area", geoms_index
+    ])
+
+    geom_labels = gdf_with_labels[name]
+    return( geom_labels )
+
 if __name__ == "__main__":
     from src import plotting
     import matplotlib.pyplot as plt
