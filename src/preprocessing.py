@@ -387,6 +387,92 @@ def clean_nyc_NTAs():
 
     return(gdf)
 
+def fetch_zillow_nbds():
+    """
+    Get 2017 Zillow neighborhood boundaries from data.cityofnewyork.us for reference. Save raw JSON at the location specified in config.NYC_NTAS_RAW.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    results : dict
+        The raw data returned from the API request and saved to file as GeoJSON
+    """
+    # REST server URL
+    BASE_URL = "https://gispub.epa.gov/arcgis/rest/services/OEI/Zillow_Neighborhoods/MapServer/0/query"
+
+    # where clause for request
+    counties = ["Bronx", "Kings", "New York", "Queens", "Richmond"]
+    where_clause = (
+        "State = 'NY' AND "
+        "County IN ({})".format(
+            ",".join(f"'{c}'" for c in counties)
+        )
+    )
+
+    # Make request
+    features = []
+    offset = 0
+    page_size = 1000
+    while True:
+        params = {
+            "where": where_clause,
+            "outFields": "*",
+            "f": "geojson",
+            "resultOffset": offset,
+            "resultRecordCount": page_size
+        }
+
+        r = requests.get(BASE_URL, params=params)
+        r.raise_for_status()
+        data = r.json()
+
+        batch = data.get("features", [])
+        if not batch:
+            break
+
+        features.extend(batch)
+        offset += page_size
+
+    # GeoJSON object
+    results = {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+    # Write to file
+    import json
+    with open(config.ZILLOW_RAW, "w") as f:
+        json.dump(results, f)
+
+    return(results)
+
+def clean_zillow_nbds():
+    """
+    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save at the location specified by config.ZILLOW_CLEAN.
+
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    gdf : gpd.GeoDataFrame
+        The GeoDataFrame constructed from the raw data, which was saved to file.
+    """
+    # Read in JSON
+    import json
+    with open(config.ZILLOW_RAW, 'r') as f:
+        geojson = json.load(f)
+
+    # Convert features into GeoDataFrame
+    gdf = gpd.GeoDataFrame.from_features(geojson, crs=config.WGS84_EPSG)
+
+    # Export
+    gdf.to_parquet(config.ZILLOW_CLEAN)
+
+    return(gdf)
+
 if __name__ == "__main__":
     # # Test clean_tracts()
     # gdf = clean_tracts(config.TRACTS_RAW, config.TRACTS_CLEAN,

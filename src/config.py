@@ -99,6 +99,10 @@ AREAWATER = [(
 NYC_NTAS_RAW = RAW_DATA_DIR / "nyc_ntas.json"
 NYC_NTAS_CLEAN = INTERIM_DATA_DIR / "nyc_ntas.parquet"
 
+# GeoJSON: 2017 Zillow neighborhood boundaries
+ZILLOW_RAW = RAW_DATA_DIR / "zillow.json"
+ZILLOW_CLEAN = INTERIM_DATA_DIR / "zillow.parquet"
+
 # 2020 Census Demographic Profile
 DECENNIAL2020_DP_RAW = RAW_DATA_DIR / "decennial2020_dp.json"
 DECENNIAL2020_DP_INIT_CLEAN = INTERIM_DATA_DIR / "decennial2020_dp_init_clean.parquet"
