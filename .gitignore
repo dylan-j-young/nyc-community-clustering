@@ -19,6 +19,9 @@ models/
 # Info (manuals, etc.)
 info/
 
+# Logs
+logs/
+
 # Notebooks for scratch work and for site generation
 notebooks/scratch_*.ipynb
 

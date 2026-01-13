@@ -61,6 +61,9 @@ METERS_PER_MILE = 1609.344
 # DATA PATHS
 ####
 
+# Log directory
+LOG_DIR = Path("logs")
+
 # Model directories
 MODEL_DIR = Path("models")
 

@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 
 import os
+import logging
 import requests
 import shutil
 import zipfile
@@ -39,10 +40,16 @@ def fetch_shapefiles(timeout=300):
         zip_path = config.SHAPEFILES_DIR / os.path.basename(url)
         extract_dir = os.path.splitext(zip_path)[0]
 
-        response = requests.get(url, timeout=timeout)
-        response.raise_for_status()
-
-        print(f"GET request status for {os.path.basename(url)}: {response.status_code}")
+        # Send GET request and retrieve a JSON-formatted response
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status() # Turns 4xx and 5xx errors into exceptions
+        except Exception as e:
+            logging.error(f"Network error: {e}")
+            raise
+        
+        # No error in GET request
+        logging.info(f"GET request for {os.path.basename(url)} succeeded")
 
         # Write zip file to config.RAW_DATA_DIR
         with open(zip_path, "wb") as f:
@@ -50,10 +57,9 @@ def fetch_shapefiles(timeout=300):
 
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir)  # delete folder and contents
+            logging.info(f"Extract directory {extract_dir} already exists. Deleting and replacing...")
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(extract_dir)
-
-
 
 def clean_tracts(input_shapefile: str | Path,
                  output_path: str | Path,
@@ -151,8 +157,6 @@ def fetch_2020_demographic_profile():
     
     Returns
     -------
-    raw_data : list
-        The raw data returned from the GET request and saved to file
     """
     # Get API key from .env (user-specific local secrets)
     load_dotenv()
@@ -178,15 +182,20 @@ def fetch_2020_demographic_profile():
         + f"&key={API_KEY}"
 
     # Send GET request and retrieve a JSON-formatted response
-    response = requests.get(url)
-    print(f"GET request status: {response.status_code}")
-    raw_data = response.json()
-
-    # Write to file
-    with open(config.DECENNIAL2020_DP_RAW, "w") as f:
-        json.dump(raw_data, f)
+    try:
+        response = requests.get(url)
+        response.raise_for_status() # Turns 4xx and 5xx errors into exceptions
+    except Exception as e:
+        logging.error(f"Network error: {e}")
+        raise
+    else:
+        # No error in GET request
+        logging.info("GET request succeeded")
+        raw_data = response.json()
     
-    return(raw_data)
+        # Write to file
+        with open(config.DECENNIAL2020_DP_RAW, "w") as f:
+            json.dump(raw_data, f)
 
 def fetch_2023_acs_5yr_select():
     """ 
@@ -197,8 +206,6 @@ def fetch_2023_acs_5yr_select():
     
     Returns
     -------
-    raw_data : list
-        The raw data returned from the GET request and saved to file
     """
     # Get API key from .env (user-specific local secrets)
     load_dotenv()
@@ -225,15 +232,20 @@ def fetch_2023_acs_5yr_select():
         + f"&key={API_KEY}"
 
     # Send GET request and retrieve a JSON-formatted response
-    response = requests.get(url)
-    print(f"GET request status: {response.status_code}")
-    raw_data = response.json()
-
-    # Write to file
-    with open(config.ACS5YR2023_RAW, "w") as f:
-        json.dump(raw_data, f)
+    try:
+        response = requests.get(url)
+        response.raise_for_status() # Turns 4xx and 5xx errors into exceptions
+    except Exception as e:
+        logging.error(f"Network error: {e}")
+        raise
+    else:
+        # No error in GET request
+        logging.info("GET request succeeded")
+        raw_data = response.json()
     
-    return(raw_data)
+        # Write to file
+        with open(config.ACS5YR2023_RAW, "w") as f:
+            json.dump(raw_data, f)
 
 def initial_clean_2020_demographic_profile():
     """
@@ -337,8 +349,6 @@ def fetch_nyc_NTAs():
     
     Returns
     -------
-    results : list
-        The raw data returned from the API request and saved to file
     """
 
     # Unauthenticated client only works with public data sets. Note 'None'
@@ -359,8 +369,6 @@ def fetch_nyc_NTAs():
     import json
     with open(config.NYC_NTAS_RAW, "w") as f:
         json.dump(results, f)
-
-    return(results)
 
 def clean_nyc_NTAs():
     """
@@ -396,8 +404,6 @@ def fetch_zillow_nbds():
     
     Returns
     -------
-    results : dict
-        The raw data returned from the API request and saved to file as GeoJSON
     """
     # REST server URL
     BASE_URL = "https://gispub.epa.gov/arcgis/rest/services/OEI/Zillow_Neighborhoods/MapServer/0/query"
@@ -424,9 +430,16 @@ def fetch_zillow_nbds():
             "resultRecordCount": page_size
         }
 
-        r = requests.get(BASE_URL, params=params)
-        r.raise_for_status()
-        data = r.json()
+        # Send GET request and retrieve a JSON-formatted response
+        try:
+            response = requests.get(BASE_URL, params=params)
+            response.raise_for_status() # Turns 4xx and 5xx errors into exceptions
+        except Exception as e:
+            logging.error(f"Network error: {e}")
+            raise
+
+        logging.info("GET request succeeded")
+        data = response.json()
 
         batch = data.get("features", [])
         if not batch:
@@ -445,8 +458,6 @@ def fetch_zillow_nbds():
     import json
     with open(config.ZILLOW_RAW, "w") as f:
         json.dump(results, f)
-
-    return(results)
 
 def clean_zillow_nbds():
     """
