@@ -69,7 +69,8 @@ MODEL_DIR = Path("models")
 
 # Data directories
 DATA_DIR = Path("data")
-RAW_DATA_DIR = DATA_DIR / "raw"
+DATABASE_DIR = DATA_DIR / "nyc_demographics_raw.db"
+RAW_DATA_DIR = DATA_DIR / "raw" # deprecated
 INTERIM_DATA_DIR = DATA_DIR / "interim"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 

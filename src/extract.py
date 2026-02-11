@@ -9,6 +9,7 @@ import requests
 import shutil
 import zipfile
 import json
+import sqlite3
 from pathlib import Path
 from typing import Optional, Sequence
 from dotenv import load_dotenv
@@ -16,6 +17,65 @@ from sodapy import Socrata
 from shapely.geometry import shape
 
 from src import config, utils
+
+def save_to_db(df, table_name, if_exists="replace", spatial=False):
+    """
+    Saves a dataframe to the raw SQLite database.
+    """
+    if spatial == False:
+        conn = sqlite3.connect(config.DATABASE_DIR)
+        try:
+            # if_exists="replace" ensures we don't add duplicates
+            df.to_sql(table_name, conn, if_exists=if_exists, index=False)
+            logging.info(f"Successfully wrote {len(df)} rows to table: {table_name}")
+        except Exception as e:
+            logging.error(f"Failed to write to table {table_name}: {e}")
+            raise
+        finally:
+            conn.close()
+    else:
+        # Enforce CRS
+        if df.crs is None:
+            df = df.set_crs(config.WGS84_EPSG)
+        else:
+            df = df.to_crs(config.WGS84_EPSG)
+
+        # Write to file
+        df.to_file(config.DATABASE_DIR,
+                   driver="SQLite",
+                   spatialite=True,
+                   layer=table_name)
+        
+def query_db(sql_query):
+    df = gpd.read_file(config.DATABASE_DIR, sql=sql_query)
+
+    if isinstance(df, gpd.GeoDataFrame):
+        # Reattach CRS
+        df = df.set_crs(config.WGS84_EPSG)
+
+    return( df )
+
+def clean_raw_types(df):
+    """
+    Smart type conversion before saving to the SQL database.
+    """
+    # 1. Identify ID columns (these stay as strings)
+    id_cols = ['GEOID']
+    
+    # 2. Get the list of columns to try and convert
+    cols_to_convert = [c for c in df.columns if c not in id_cols]
+    
+    # 3. Convert to numeric if not an ID column
+    for col in cols_to_convert:
+        # errors='coerce' turns weird stuff into NaN (NULL)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    
+    # 4. Explicitly ensure IDs are strings
+    for col in id_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+
+    return(df)
 
 def fetch_shapefiles(timeout=300):
     """
@@ -150,7 +210,7 @@ def clean_tracts(input_shapefile: str | Path,
 
 def fetch_2020_demographic_profile():
     """ 
-    Calls the US Census API with a GET query for the 2020 Census Demographic Profile, for each census tract in NYC. Saves the returned data as a JSON file in config.DECENNIAL2020_DP_RAW.
+    Calls the US Census API with a GET query for the 2020 Census Demographic Profile, for each census tract in NYC. Saves the returned data as a table in a SQLite database.
 
     Parameters
     ----------
@@ -193,9 +253,27 @@ def fetch_2020_demographic_profile():
         logging.info("GET request succeeded")
         raw_data = response.json()
     
-        # Write to file
-        with open(config.DECENNIAL2020_DP_RAW, "w") as f:
-            json.dump(raw_data, f)
+        # # Write to file
+        # with open(config.DECENNIAL2020_DP_RAW, "w") as f:
+        #     json.dump(raw_data, f)
+
+        # --- Clean up for SQL ---
+        df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+        # Remove duplicate columns
+        df = df.loc[:,~df.columns.duplicated()]
+
+        # Remove end columns that are redundant in other tables
+        df = df.drop(columns=["NAME","state","county","tract"])
+
+        # Clean GEO_ID and rename to GEOID
+        df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
+        df = df.rename(columns={"GEO_ID": "GEOID"})
+
+        # Convert non-ID columns to numeric
+        df = clean_raw_types(df)
+
+        # Save to SQLite database
+        save_to_db(df, "decennial2020_dp")
 
 def fetch_2023_acs_5yr_select():
     """ 
@@ -243,9 +321,9 @@ def fetch_2023_acs_5yr_select():
         logging.info("GET request succeeded")
         raw_data = response.json()
     
-        # Write to file
-        with open(config.ACS5YR2023_RAW, "w") as f:
-            json.dump(raw_data, f)
+        # # Write to file
+        # with open(config.ACS5YR2023_RAW, "w") as f:
+        #     json.dump(raw_data, f)
 
 def initial_clean_2020_demographic_profile():
     """
