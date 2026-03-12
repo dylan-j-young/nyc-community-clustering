@@ -5,7 +5,8 @@ import geopandas as gpd
 import os
 import logging
 
-from src import extract, config, plotting, utils
+from src import config
+from src.etl import extract, load
 
 def ensure_directories():
     """Ensure that the necessary data and log directories exist."""
@@ -62,19 +63,19 @@ def main():
 
     # --- 2. INITIAL TRANSFORM/LOAD PHASE ---
     logging.info("Cleaning 2020 Demographic Profile...")
-    extract.initial_clean_2020_demographic_profile()
+    load.clean_decennial2020()
 
     logging.info("Cleaning 2023 5-Year ACS...")
-    extract.initial_clean_2023_acs_5yr_select()
+    load.clean_acs2023()
 
     logging.info("Cleaning tract geographies...")
-    extract.clean_nyc_tracts()
+    load.clean_nyc_tracts()
 
     logging.info("Cleaning Neighborhood Tabulation Areas...")
-    extract.clean_nyc_NTAs()
+    load.clean_nyc_NTAs()
 
     logging.info("Cleaning 2017 Zillow neighborhood boundaries...")
-    extract.clean_zillow_nbds()
+    load.clean_zillow_nbds()
 
     logging.info("--- Pipeline Completed Successfully ---")
 

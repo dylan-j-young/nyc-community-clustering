@@ -21,7 +21,7 @@ import contextily as ctx
 
 import warnings
 
-from src import config, utils, evaluation
+from . import config, utils, evaluation
 
 def _plot_and_annotate(ax, tracts,
                        linewidth: float = 1,

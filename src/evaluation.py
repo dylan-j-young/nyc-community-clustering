@@ -15,7 +15,7 @@ import networkx as nx
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
-from src import config, utils
+from . import config, utils
 
 def _calculate_truncated_sample_silhouettes(dist_matrix, labels):
     """ 

@@ -17,7 +17,7 @@ import random
 from typing import Optional
 import warnings
 
-from src import config
+from . import config
 
 ## Helper functions for other scripts and notebooks
 def clean_geoid(geoid_raw: str | pd.Series) -> str | pd.Series:
