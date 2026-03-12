@@ -127,7 +127,7 @@ def clean_tracts(input_shapefile: str | Path,
                     Optional[str | Path | Sequence[str|Path]] = None
                 ) -> gpd.GeoDataFrame:
     """
-    Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it. Also exports the cleaned GeoDataFrame to a parquet file (pyarrow or equivalent library required).
+    Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it. Also writes the cleaned GeoDataFrame to the table "tracts" in the SQLite database.
 
     Parameters
     ----------
@@ -144,12 +144,12 @@ def clean_tracts(input_shapefile: str | Path,
     -------
     gdf : gpd.GeoDataFrame
         GeoDataFrame of census tracts in NYC with the columns:
-        GEOID : str, 11-digit GEOID for tract
-        BOROUGH : str, representing the name of the borough
-        TRACT : str, Census tract number
-        AREA : int64, land area of tract in square meters
-        LAT : str, latitude of the tract's internal point
-        LONG : str, longitude of the tract's internal point
+        geoid : str, 11-digit GEOID for tract
+        borough : str, representing the name of the borough
+        tract : str, Census tract number
+        area : int64, land area of tract in square meters
+        lat : str, latitude of the tract's internal point
+        long : str, longitude of the tract's internal point
         geometry : Polygon, representing the tract in WGS84
     """
 
@@ -204,13 +204,13 @@ def clean_tracts(input_shapefile: str | Path,
     gdf = gdf.set_index("GEOID")
 
     # Export cleaned GeoDataFrame to output_path
-    gdf.to_parquet(output_path)
+    save_to_db(gdf, "tracts", spatial=True)
 
     return(gdf)
 
 def fetch_2020_demographic_profile():
     """ 
-    Calls the US Census API with a GET query for the 2020 Census Demographic Profile, for each census tract in NYC. Saves the returned data as a table in a SQLite database.
+    Calls the US Census API with a GET query for the 2020 Census Demographic Profile, for each census tract in NYC. Saves the returned data as raw JSON in config.DECENNIAL2020_DP_RAW.
 
     Parameters
     ----------
@@ -253,27 +253,29 @@ def fetch_2020_demographic_profile():
         logging.info("GET request succeeded")
         raw_data = response.json()
     
-        # # Write to file
-        # with open(config.DECENNIAL2020_DP_RAW, "w") as f:
-        #     json.dump(raw_data, f)
+        # Write to file
+        with open(config.DECENNIAL2020_DP_RAW, "w") as f:
+            json.dump(raw_data, f)
 
-        # --- Clean up for SQL ---
-        df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-        # Remove duplicate columns
-        df = df.loc[:,~df.columns.duplicated()]
+        # # Write to SQLite database
+        # # # --- Clean up for SQL ---
+        # df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+        # # # Remove duplicate columns
+        # # df = df.loc[:,~df.columns.duplicated()]
 
-        # Remove end columns that are redundant in other tables
-        df = df.drop(columns=["NAME","state","county","tract"])
+        # # # Remove end columns that are redundant in other tables
+        # # df = df.drop(columns=["NAME","state","county","tract"])
 
-        # Clean GEO_ID and rename to GEOID
-        df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
-        df = df.rename(columns={"GEO_ID": "GEOID"})
+        # # # Clean GEO_ID and rename to GEOID
+        # # df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
+        # # df = df.rename(columns={"GEO_ID": "GEOID"})
 
-        # Convert non-ID columns to numeric
-        df = clean_raw_types(df)
+        # # # Convert non-ID columns to numeric
+        # # df = clean_raw_types(df)
 
-        # Save to SQLite database
-        save_to_db(df, "decennial2020_dp")
+        # # Save to SQLite database
+        # save_to_db(df, "raw_decennial2020")
+        # logging.info("Saved data to table raw_decennial2020")
 
 def fetch_2023_acs_5yr_select():
     """ 
@@ -321,9 +323,10 @@ def fetch_2023_acs_5yr_select():
         logging.info("GET request succeeded")
         raw_data = response.json()
     
-        # # Write to file
-        # with open(config.ACS5YR2023_RAW, "w") as f:
-        #     json.dump(raw_data, f)
+        # Write to file
+        with open(config.ACS5YR2023_RAW, "w") as f:
+            json.dump(raw_data, f)
+
 
 def initial_clean_2020_demographic_profile():
     """
@@ -335,7 +338,7 @@ def initial_clean_2020_demographic_profile():
     Returns
     -------
     df : pd.DataFrame
-        The cleaned dataframe saved to file.
+        The cleaned dataframe saved to the SQLite table.
     """
     # Load raw data from file and convert to a dataframe
     with open(config.DECENNIAL2020_DP_RAW, "r") as f:
@@ -367,7 +370,7 @@ def initial_clean_2020_demographic_profile():
         df[col] = pd.to_numeric(df[col], errors="raise")
 
     # Export cleaned DataFrame to file
-    df.to_parquet(config.DECENNIAL2020_DP_INIT_CLEAN)
+    save_to_db(df, "decennial2020_dp")
 
     return( df )
 
@@ -381,7 +384,7 @@ def initial_clean_2023_acs_5yr_select():
     Returns
     -------
     df : pd.DataFrame
-        The cleaned dataframe saved to file.
+        The cleaned dataframe saved to the SQLite table.
     """
     # Load raw data from file and convert to a dataframe
     with open(config.ACS5YR2023_RAW, "r") as f:
@@ -414,7 +417,7 @@ def initial_clean_2023_acs_5yr_select():
     df = df.replace(-666666666, np.nan)
 
     # Export cleaned DataFrame to file
-    df.to_parquet(config.ACS5YR2023_INIT_CLEAN)
+    save_to_db(df, "acs5yr2023")
 
     return( df )
 
@@ -470,6 +473,7 @@ def clean_nyc_NTAs():
     # Initialize the GeoDataFrame and save
     gdf = gpd.GeoDataFrame(df, crs=config.WGS84_EPSG, geometry="geometry")
     gdf.to_parquet(config.NYC_NTAS_CLEAN)
+    # save_to_db(gdf, "ntas", spatial=True)
 
     return(gdf)
 
@@ -539,7 +543,7 @@ def fetch_zillow_nbds():
 
 def clean_zillow_nbds():
     """
-    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save at the location specified by config.ZILLOW_CLEAN.
+    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save to a table called "zillow_nbds" in the SQLite table.
 
     Parameters
     ----------
@@ -558,7 +562,7 @@ def clean_zillow_nbds():
     gdf = gpd.GeoDataFrame.from_features(geojson, crs=config.WGS84_EPSG)
 
     # Export
-    gdf.to_parquet(config.ZILLOW_CLEAN)
+    save_to_db(gdf, "zillow_nbds", spatial=True)
 
     return(gdf)
 
