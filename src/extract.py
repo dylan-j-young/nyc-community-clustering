@@ -41,10 +41,15 @@ def save_to_db(df, table_name, if_exists="replace", spatial=False):
             df = df.to_crs(config.WGS84_EPSG)
 
         # Write to file
-        df.to_file(config.DATABASE_DIR,
-                   driver="SQLite",
-                   spatialite=True,
-                   layer=table_name)
+        try:
+            df.to_file(config.DATABASE_DIR,
+                    driver="SQLite",
+                    spatialite=True,
+                    layer=table_name)
+            logging.info(f"Successfully wrote {len(df)} rows to table: {table_name}")
+        except Exception as e:
+            logging.error(f"Failed to write to table {table_name}: {e}")
+            raise
         
 def query_db(sql_query):
     df = gpd.read_file(config.DATABASE_DIR, sql=sql_query)
@@ -121,21 +126,32 @@ def fetch_shapefiles(timeout=300):
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(extract_dir)
 
+def clean_nyc_tracts():
+    """
+    Cleans NYC census tracts using clean_tracts, and writes the cleaned GeoDataFrame to the table "clean_tracts" in the SQLite database.
+    
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    """
+    gdf = clean_tracts(config.TRACTS_RAW, config.AREAWATER)
+
+    # Write to SQLite table
+    save_to_db(gdf, "clean_tracts", spatial=True)
+
 def clean_tracts(input_shapefile: str | Path,
-                 output_path: str | Path,
                  areawater_shapefile: 
                     Optional[str | Path | Sequence[str|Path]] = None
                 ) -> gpd.GeoDataFrame:
     """
-    Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it. Also writes the cleaned GeoDataFrame to the table "tracts" in the SQLite database.
+    Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it.
 
     Parameters
     ----------
     input_shapefile : str or Path
         Location of the .shp file for the desired tracts. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for the shapefile to successfully load.
-
-    output_path : str or Path
-        Desired output location for the parquet file.
 
     areawater_shapefile : str or Path (or list thereof), optional
         Location of the .shp file or .shp files for water areas to subtract from the census tract geometries. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for each shapefile to successfully load. Default is None.
@@ -144,7 +160,7 @@ def clean_tracts(input_shapefile: str | Path,
     -------
     gdf : gpd.GeoDataFrame
         GeoDataFrame of census tracts in NYC with the columns:
-        geoid : str, 11-digit GEOID for tract
+        GEOID : str, 11-digit GEOID for tract
         borough : str, representing the name of the borough
         tract : str, Census tract number
         area : int64, land area of tract in square meters
@@ -200,13 +216,10 @@ def clean_tracts(input_shapefile: str | Path,
         # Subtract areawater polygons from the census tracts
         gdf = gdf.overlay(gdf_water, how='difference')
 
-    # Set index to GEOID
-    gdf = gdf.set_index("GEOID")
+    # # Set index to GEOID
+    # gdf = gdf.set_index("GEOID")
 
-    # Export cleaned GeoDataFrame to output_path
-    save_to_db(gdf, "tracts", spatial=True)
-
-    return(gdf)
+    return( gdf )
 
 def fetch_2020_demographic_profile():
     """ 
@@ -256,26 +269,6 @@ def fetch_2020_demographic_profile():
         # Write to file
         with open(config.DECENNIAL2020_DP_RAW, "w") as f:
             json.dump(raw_data, f)
-
-        # # Write to SQLite database
-        # # # --- Clean up for SQL ---
-        # df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-        # # # Remove duplicate columns
-        # # df = df.loc[:,~df.columns.duplicated()]
-
-        # # # Remove end columns that are redundant in other tables
-        # # df = df.drop(columns=["NAME","state","county","tract"])
-
-        # # # Clean GEO_ID and rename to GEOID
-        # # df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
-        # # df = df.rename(columns={"GEO_ID": "GEOID"})
-
-        # # # Convert non-ID columns to numeric
-        # # df = clean_raw_types(df)
-
-        # # Save to SQLite database
-        # save_to_db(df, "raw_decennial2020")
-        # logging.info("Saved data to table raw_decennial2020")
 
 def fetch_2023_acs_5yr_select():
     """ 
@@ -330,15 +323,13 @@ def fetch_2023_acs_5yr_select():
 
 def initial_clean_2020_demographic_profile():
     """
-    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns.
+    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns, and loads into the SQLite database as the table "clean_decennial2020".
 
     Parameters
     ----------
     
     Returns
     -------
-    df : pd.DataFrame
-        The cleaned dataframe saved to the SQLite table.
     """
     # Load raw data from file and convert to a dataframe
     with open(config.DECENNIAL2020_DP_RAW, "r") as f:
@@ -351,40 +342,36 @@ def initial_clean_2020_demographic_profile():
     # Clean GEO_ID, rename to GEOID, and set as index
     df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
     df = df.rename(columns={"GEO_ID": "GEOID"})
-    df = df.set_index("GEOID")
+    # df = df.set_index("GEOID")
 
     # Remove end columns that are redundant
     df = df.drop(columns=["NAME","state","county","tract"])
 
-    # Keep only the columns listed in CENSUS_VARS
-    # (Only pure counts, removing redundant columns)
-    census_var_renames = config.CENSUS_VARS["2020_census_dp"]
-    cols_to_keep = list( census_var_renames.keys() )
-    df = df[df.columns.intersection(cols_to_keep)]
+    # Convert non-ID columns to numeric
+    df = clean_raw_types(df)
 
-    # Rename columns
-    df = df.rename( columns = census_var_renames )
+    ## TODO : move to analysis cleaning
+    # # Keep only the columns listed in CENSUS_VARS
+    # # (Only pure counts, removing redundant columns)
+    # census_var_renames = config.CENSUS_VARS["2020_census_dp"]
+    # cols_to_keep = list( census_var_renames.keys() )
+    # df = df[df.columns.intersection(cols_to_keep)]
 
-    # Convert strings of numbers to numbers
-    for col in df:
-        df[col] = pd.to_numeric(df[col], errors="raise")
+    # # Rename columns
+    # df = df.rename( columns = census_var_renames )
 
     # Export cleaned DataFrame to file
-    save_to_db(df, "decennial2020_dp")
-
-    return( df )
+    save_to_db(df, "clean_decennial2020")
 
 def initial_clean_2023_acs_5yr_select():
     """
-    Performs an initial cleaning of the 2023 ACS 5yr data.
+    Performs an initial cleaning of the 2023 ACS 5yr data. Loads the data into the SQLite database as the table "clean_acs2023".
 
     Parameters
     ----------
     
     Returns
     -------
-    df : pd.DataFrame
-        The cleaned dataframe saved to the SQLite table.
     """
     # Load raw data from file and convert to a dataframe
     with open(config.ACS5YR2023_RAW, "r") as f:
@@ -394,32 +381,34 @@ def initial_clean_2023_acs_5yr_select():
     # Clean GEO_ID, rename to GEOID, and set as index
     df["GEO_ID"] = utils.clean_geoid(df["GEO_ID"])
     df = df.rename(columns={"GEO_ID": "GEOID"})
-    df = df.set_index("GEOID")
+    # df = df.set_index("GEOID")
 
     # Remove end columns that are redundant
     df = df.drop(columns=["state","county","tract"])
-
-    # Rename columns
-    census_var_renames = config.CENSUS_VARS["2023_acs_5yr_select"]
-    df = df.rename( columns = census_var_renames )
+    
+    ## TODO : move to analysis cleaning
+    # # Rename columns
+    # census_var_renames = config.CENSUS_VARS["2023_acs_5yr_select"]
+    # df = df.rename( columns = census_var_renames )
 
     # Convert strings of numbers to numbers
-    for col in df:
-        df[col] = pd.to_numeric(df[col], errors="raise")
-
-    # Drop columns with margins of error
-    all_cols = df.columns.to_numpy()
-    margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
-    df = df.drop(columns=margin_cols)
+    # for col in df:
+    #     df[col] = pd.to_numeric(df[col], errors="raise")
+    df = clean_raw_types(df)
 
     # Label unfilled entries with nan
     df = df.replace(-888888888, np.nan)
     df = df.replace(-666666666, np.nan)
+    df = df.replace(-222222222, np.nan)
+
+    ## TODO: move to analysis cleaning
+    # # Drop columns with margins of error
+    # all_cols = df.columns.to_numpy()
+    # margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
+    # df = df.drop(columns=margin_cols)
 
     # Export cleaned DataFrame to file
-    save_to_db(df, "acs5yr2023")
-
-    return( df )
+    save_to_db(df, "clean_acs2023")
 
 def fetch_nyc_NTAs():
     """
@@ -453,15 +442,13 @@ def fetch_nyc_NTAs():
 
 def clean_nyc_NTAs():
     """
-    Load in JSON from fetch_nyc_NTAs() and convert it to a GeoDataFrame. Save at the location specified by config.NYC_NTAS_CLEAN.
+    Load in JSON from fetch_nyc_NTAs() and convert it to a GeoDataFrame. Save to the table "clean_ntas" in the SQLite database.
 
     Parameters
     ----------
     
     Returns
     -------
-    gdf : gpd.GeoDataFrame
-        The GeoDataFrame constructed from the raw data, which was saved to file.
     """
     # Read in JSON
     df = pd.read_json(config.NYC_NTAS_RAW)
@@ -472,10 +459,7 @@ def clean_nyc_NTAs():
 
     # Initialize the GeoDataFrame and save
     gdf = gpd.GeoDataFrame(df, crs=config.WGS84_EPSG, geometry="geometry")
-    gdf.to_parquet(config.NYC_NTAS_CLEAN)
-    # save_to_db(gdf, "ntas", spatial=True)
-
-    return(gdf)
+    save_to_db(gdf, "clean_ntas", spatial=True)
 
 def fetch_zillow_nbds():
     """
@@ -543,15 +527,13 @@ def fetch_zillow_nbds():
 
 def clean_zillow_nbds():
     """
-    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save to a table called "zillow_nbds" in the SQLite table.
+    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save to a table called "clean_zillow" in the SQLite table.
 
     Parameters
     ----------
     
     Returns
     -------
-    gdf : gpd.GeoDataFrame
-        The GeoDataFrame constructed from the raw data, which was saved to file.
     """
     # Read in JSON
     import json
@@ -562,9 +544,7 @@ def clean_zillow_nbds():
     gdf = gpd.GeoDataFrame.from_features(geojson, crs=config.WGS84_EPSG)
 
     # Export
-    save_to_db(gdf, "zillow_nbds", spatial=True)
-
-    return(gdf)
+    save_to_db(gdf, "clean_zillow", spatial=True)
 
 if __name__ == "__main__":
     # # Test clean_tracts()

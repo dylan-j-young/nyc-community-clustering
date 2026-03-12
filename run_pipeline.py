@@ -60,6 +60,21 @@ def main():
     logging.info("Fetching 2017 Zillow neighborhood boundaries...")
     extract.fetch_zillow_nbds()
 
+    # --- 2. INITIAL TRANSFORM/LOAD PHASE ---
+    logging.info("Cleaning 2020 Demographic Profile...")
+    extract.initial_clean_2020_demographic_profile()
+
+    logging.info("Cleaning 2023 5-Year ACS...")
+    extract.initial_clean_2023_acs_5yr_select()
+
+    logging.info("Cleaning tract geographies...")
+    extract.clean_nyc_tracts()
+
+    logging.info("Cleaning Neighborhood Tabulation Areas...")
+    extract.clean_nyc_NTAs()
+
+    logging.info("Cleaning 2017 Zillow neighborhood boundaries...")
+    extract.clean_zillow_nbds()
 
     logging.info("--- Pipeline Completed Successfully ---")
 
