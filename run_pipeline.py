@@ -42,7 +42,7 @@ def setup_logging():
     logging.info("--- Pipeline Session Started ---")
 
 # Different stages to run pipeline from
-STAGES = ['extract', 'silver', 'gold']
+STAGES = ['extract', 'load', 'transform', 'features']
 
 def main(start_from = "extract"):
     # Setup
@@ -54,14 +54,14 @@ def main(start_from = "extract"):
     if run_from <= STAGES.index('extract'):
         # Get data and dump into raw files
         extract.run()
-
-        # Minimal cleaning and type checks, then load to bronze tables
+    if run_from <= STAGES.index('load'):
+        # Minimal cleaning and type checks, then load to cleaned tables
         load.run() 
-    if run_from <= STAGES.index('silver'):
+    if run_from <= STAGES.index('transform'):
         pass
         # # Row filtering, partial column filtering, geography transformation
-        # transform.to_silver()
-    if run_from <= STAGES.index('gold'):
+        # transform.run()
+    if run_from <= STAGES.index('features'):
         pass
         # # Generate final dataset for clustering
         # transform.to_gold()

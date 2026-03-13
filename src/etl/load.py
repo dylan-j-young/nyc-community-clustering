@@ -53,7 +53,7 @@ def clean_raw_types(df):
 
 def clean_nyc_tracts():
     """
-    Cleans NYC census tracts using clean_tracts, and writes the cleaned GeoDataFrame to the table "bronze_tracts" in the SQLite database.
+    Cleans NYC census tracts using clean_tracts, and writes the cleaned GeoDataFrame to the table "clean_tracts" in the SQLite database.
     
     Parameters
     ----------
@@ -64,7 +64,7 @@ def clean_nyc_tracts():
     gdf = clean_tracts(config.TRACTS_RAW, config.AREAWATER)
 
     # Write to SQLite table
-    database.save_to_db(gdf, "bronze_tracts", spatial=True)
+    database.save_to_db(gdf, "clean_tracts", spatial=True)
 
 def clean_tracts(input_shapefile, areawater_shapefile):
     """
@@ -145,7 +145,7 @@ def clean_tracts(input_shapefile, areawater_shapefile):
 
 def clean_decennial2020():
     """
-    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns, and loads into the SQLite database as the table "bronze_decennial2020".
+    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns, and loads into the SQLite database as the table "clean_decennial2020".
 
     Parameters
     ----------
@@ -183,11 +183,11 @@ def clean_decennial2020():
     # df = df.rename( columns = census_var_renames )
 
     # Export cleaned DataFrame to file
-    database.save_to_db(df, "bronze_decennial2020")
+    database.save_to_db(df, "clean_decennial2020")
 
 def clean_acs2023():
     """
-    Performs an initial cleaning of the 2023 ACS 5yr data. Loads the data into the SQLite database as the table "bronze_acs2023".
+    Performs an initial cleaning of the 2023 ACS 5yr data. Loads the data into the SQLite database as the table "clean_acs2023".
 
     Parameters
     ----------
@@ -230,11 +230,11 @@ def clean_acs2023():
     # df = df.drop(columns=margin_cols)
 
     # Export cleaned DataFrame to file
-    database.save_to_db(df, "bronze_acs2023")
+    database.save_to_db(df, "clean_acs2023")
 
 def clean_nyc_NTAs():
     """
-    Load in JSON from fetch_nyc_NTAs() and convert it to a GeoDataFrame. Save to the table "bronze_ntas" in the SQLite database.
+    Load in JSON from fetch_nyc_NTAs() and convert it to a GeoDataFrame. Save to the table "clean_ntas" in the SQLite database.
 
     Parameters
     ----------
@@ -251,11 +251,11 @@ def clean_nyc_NTAs():
 
     # Initialize the GeoDataFrame and save
     gdf = gpd.GeoDataFrame(df, crs=config.WGS84_EPSG, geometry="geometry")
-    database.save_to_db(gdf, "bronze_ntas", spatial=True)
+    database.save_to_db(gdf, "clean_ntas", spatial=True)
 
 def clean_zillow_nbds():
     """
-    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save to a table called "bronze_zillow" in the SQLite table.
+    Load in JSON from fetch_zillow_nbds() and convert it to a GeoDataFrame. Save to a table called "clean_zillow" in the SQLite table.
 
     Parameters
     ----------
@@ -272,4 +272,4 @@ def clean_zillow_nbds():
     gdf = gpd.GeoDataFrame.from_features(geojson, crs=config.WGS84_EPSG)
 
     # Export
-    database.save_to_db(gdf, "bronze_zillow", spatial=True)
+    database.save_to_db(gdf, "clean_zillow", spatial=True)

@@ -27,5 +27,6 @@ The project has the following simplified root-level structure, roughly inspired 
     ```
     CENSUS_API_KEY=your_key_here
     ```
-5. Run all cells in the notebook `notebooks/00_preprocessing.ipynb` to complete the directory structure and download all relevant data and geometries.
+5. Run the script `run_pipeline.py` to complete the directory structure, download data, and build the SQLite database.
+<!-- Run all cells in the notebook `notebooks/00_preprocessing.ipynb` to complete the directory structure and download all relevant data and geometries. -->
 6. If you want to replicate my work, first run through notebook `notebooks/01_feature-engineering.ipynb` to generate the dataset I used for clustering. Then run through notebook `notebooks/02_clustering.ipynb` to look at different clustering algorithms and evaluation metrics.
