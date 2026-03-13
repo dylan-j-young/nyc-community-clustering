@@ -4,12 +4,14 @@ import geopandas as gpd
 
 import os
 import logging
+import argparse
 
 from src import config
 from src.etl import extract, load
 
 def ensure_directories():
     """Ensure that the necessary data and log directories exist."""
+    logging.info("Checking all folders are created...")
     dirs = [
         config.DATA_DIR,
         config.RAW_DATA_DIR,
@@ -39,45 +41,39 @@ def setup_logging():
     )
     logging.info("--- Pipeline Session Started ---")
 
-def main():
-    # --- 0. PROJECT SETUP ---
+# Different stages to run pipeline from
+STAGES = ['extract', 'silver', 'gold']
+
+def main(start_from = "extract"):
+    # Setup
     setup_logging()
-    logging.info("Checking all folders are created...")
     ensure_directories()
 
-    # --- 1. EXTRACTION PHASE ---
-    logging.info("Fetching 2020 Demographic Profile...")
-    extract.fetch_2020_demographic_profile()
+    run_from = STAGES.index(start_from)
+    
+    if run_from <= STAGES.index('extract'):
+        # Get data and dump into raw files
+        extract.run()
 
-    logging.info("Fetching 2023 5-Year ACS...")
-    extract.fetch_2023_acs_5yr_select()
+        # Minimal cleaning and type checks, then load to bronze tables
+        load.run() 
+    if run_from <= STAGES.index('silver'):
+        pass
+        # # Row filtering, partial column filtering, geography transformation
+        # transform.to_silver()
+    if run_from <= STAGES.index('gold'):
+        pass
+        # # Generate final dataset for clustering
+        # transform.to_gold()
 
-    logging.info("Fetching shapefiles...")
-    extract.fetch_shapefiles()
-
-    logging.info("Fetching Neighborhood Tabulation Areas...")
-    extract.fetch_nyc_NTAs()
-
-    logging.info("Fetching 2017 Zillow neighborhood boundaries...")
-    extract.fetch_zillow_nbds()
-
-    # --- 2. INITIAL TRANSFORM/LOAD PHASE ---
-    logging.info("Cleaning 2020 Demographic Profile...")
-    load.clean_decennial2020()
-
-    logging.info("Cleaning 2023 5-Year ACS...")
-    load.clean_acs2023()
-
-    logging.info("Cleaning tract geographies...")
-    load.clean_nyc_tracts()
-
-    logging.info("Cleaning Neighborhood Tabulation Areas...")
-    load.clean_nyc_NTAs()
-
-    logging.info("Cleaning 2017 Zillow neighborhood boundaries...")
-    load.clean_zillow_nbds()
-
-    logging.info("--- Pipeline Completed Successfully ---")
+    logging.info("--- Pipeline Completed ---")
 
 if __name__ == "__main__":
-    main()
+    # Set up flag to start pipeline at different stages
+    # python run_pipeline.py --from-stage extract
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--from-stage', 
+                        choices=STAGES, default='extract')
+    args = parser.parse_args()
+
+    main(start_from=args.from_stage)

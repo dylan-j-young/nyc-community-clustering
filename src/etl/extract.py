@@ -10,6 +10,26 @@ from sodapy import Socrata
 
 from .. import config
 
+def run():
+    """Run the full extract sequence, which obtains raw data and dumps as JSON and shapefiles."""
+
+    logging.info("--- 1) EXTRACT PHASE ---")
+    
+    logging.info("Fetching 2020 Demographic Profile...")
+    fetch_2020_demographic_profile()
+
+    logging.info("Fetching 2023 5-Year ACS...")
+    fetch_2023_acs_5yr_select()
+
+    logging.info("Fetching shapefiles...")
+    fetch_shapefiles()
+
+    logging.info("Fetching Neighborhood Tabulation Areas...")
+    fetch_nyc_NTAs()
+
+    logging.info("Fetching 2017 Zillow neighborhood boundaries...")
+    fetch_zillow_nbds()
+
 def fetch_shapefiles(timeout=300):
     """
     Get 2023 shapefiles for NYC census tracts and areawater geometries.
