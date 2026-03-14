@@ -7,7 +7,7 @@ import logging
 import argparse
 
 from src import config
-from src.etl import extract, load
+from src.etl import extract, load, transform
 
 def ensure_directories():
     """Ensure that the necessary data and log directories exist."""
@@ -58,9 +58,8 @@ def main(start_from = "extract"):
         # Minimal cleaning and type checks, then load to cleaned tables
         load.run() 
     if run_from <= STAGES.index('transform'):
-        pass
-        # # Row filtering, partial column filtering, geography transformation
-        # transform.run()
+        # Row filtering, partial column filtering, geography transformation
+        transform.run()
     if run_from <= STAGES.index('features'):
         pass
         # # Generate final dataset for clustering

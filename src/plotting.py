@@ -39,7 +39,7 @@ def _plot_and_annotate(ax, tracts,
     # Annotate with census tract numbers
     for idx, row in tracts.iterrows():
         # Label is Census Tract number
-        label = row["TRACT"]
+        label = row["tract"]
 
         # Label location is a representative point within the tract
         point = row.geometry.representative_point()

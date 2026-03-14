@@ -21,7 +21,9 @@ def run():
     clean_acs2023()
 
     logging.info("Cleaning tract geographies...")
-    clean_nyc_tracts()
+    # clean_nyc_tracts()
+    clean_tracts_draft()
+    clean_areawater_draft()
 
     logging.info("Cleaning Neighborhood Tabulation Areas...")
     clean_nyc_NTAs()
@@ -51,6 +53,7 @@ def clean_raw_types(df):
 
     return(df)
 
+# DEPRECATED
 def clean_nyc_tracts():
     """
     Cleans NYC census tracts using clean_tracts, and writes the cleaned GeoDataFrame to the table "clean_tracts" in the SQLite database.
@@ -66,6 +69,7 @@ def clean_nyc_tracts():
     # Write to SQLite table
     database.save_to_db(gdf, "clean_tracts", spatial=True)
 
+# DEPRECATED
 def clean_tracts(input_shapefile, areawater_shapefile):
     """
     Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it.
@@ -143,9 +147,43 @@ def clean_tracts(input_shapefile, areawater_shapefile):
 
     return( gdf )
 
+def clean_areawater_draft():
+    # Multiple areawater shapefiles to combine
+    gdfs_water = [
+        gpd.read_file(f).to_crs(epsg=config.WGS84_EPSG) \
+        for f in config.AREAWATER
+    ]
+    gdf_water = gpd.GeoDataFrame( pd.concat(gdfs_water) )
+
+    # Write to SQLite table
+    database.save_to_db(gdf_water, "clean_areawater", spatial=True)
+
+def clean_tracts_draft():
+    # Load census tract shapefile
+    gdf = gpd.read_file(config.TRACTS_RAW)
+
+    # Preprocessing: clean GEOIDs
+    geoids = utils.clean_geoid(gdf["GEOID"])
+    gdf["GEOID"] = geoids
+
+    # Keep only tracts in the NYC five boroughs (this is a state-level dataset)
+    # There should be 2327 of these
+    gdf = gdf[
+        (gdf["STATEFP"] + gdf["COUNTYFP"]).isin(config.FIPS_DICT)
+    ]
+
+    # Make lat/long coordinates numeric
+    gdf[["INTPTLAT","INTPTLON"]] = gdf[["INTPTLAT","INTPTLON"]].apply(pd.to_numeric)
+
+    # Convert coordinate reference to WGS84 
+    gdf = gdf.to_crs(epsg=config.WGS84_EPSG)
+
+    # Write to SQLite table
+    database.save_to_db(gdf, "clean_tracts", spatial=True)
+
 def clean_decennial2020():
     """
-    Performs an initial cleaning of the 2020 DP data. Selects out only pure counts (not percentages or annotations) and removes redundant columns, and loads into the SQLite database as the table "clean_decennial2020".
+    Performs an initial cleaning of the 2020 DP data. Removes redundant columns and loads into the SQLite database as the table "clean_decennial2020".
 
     Parameters
     ----------
@@ -171,16 +209,6 @@ def clean_decennial2020():
 
     # Convert non-ID columns to numeric
     df = clean_raw_types(df)
-
-    ## TODO : move to analysis cleaning
-    # # Keep only the columns listed in CENSUS_VARS
-    # # (Only pure counts, removing redundant columns)
-    # census_var_renames = config.CENSUS_VARS["2020_census_dp"]
-    # cols_to_keep = list( census_var_renames.keys() )
-    # df = df[df.columns.intersection(cols_to_keep)]
-
-    # # Rename columns
-    # df = df.rename( columns = census_var_renames )
 
     # Export cleaned DataFrame to file
     database.save_to_db(df, "clean_decennial2020")
@@ -208,11 +236,6 @@ def clean_acs2023():
     # Remove end columns that are redundant
     df = df.drop(columns=["state","county","tract"])
     
-    ## TODO : move to analysis cleaning
-    # # Rename columns
-    # census_var_renames = config.CENSUS_VARS["2023_acs_5yr_select"]
-    # df = df.rename( columns = census_var_renames )
-
     # Convert strings of numbers to numbers
     # for col in df:
     #     df[col] = pd.to_numeric(df[col], errors="raise")
