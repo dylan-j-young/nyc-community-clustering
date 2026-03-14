@@ -44,4 +44,7 @@ def query_db(sql_query):
         # Reattach CRS
         df = df.set_crs(config.WGS84_EPSG)
 
+    # enforce lowercase column name convention
+    df.columns = df.columns.str.lower()
+
     return( df )
