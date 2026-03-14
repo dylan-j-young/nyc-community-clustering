@@ -21,9 +21,8 @@ def run():
     clean_acs2023()
 
     logging.info("Cleaning tract geographies...")
-    # clean_nyc_tracts()
-    clean_tracts_draft()
-    clean_areawater_draft()
+    clean_tracts()
+    clean_areawater()
 
     logging.info("Cleaning Neighborhood Tabulation Areas...")
     clean_nyc_NTAs()
@@ -53,101 +52,7 @@ def clean_raw_types(df):
 
     return(df)
 
-# DEPRECATED
-def clean_nyc_tracts():
-    """
-    Cleans NYC census tracts using clean_tracts, and writes the cleaned GeoDataFrame to the table "clean_tracts" in the SQLite database.
-    
-    Parameters
-    ----------
-    
-    Returns
-    -------
-    """
-    gdf = clean_tracts(config.TRACTS_RAW, config.AREAWATER)
-
-    # Write to SQLite table
-    database.save_to_db(gdf, "clean_tracts", spatial=True)
-
-# DEPRECATED
-def clean_tracts(input_shapefile, areawater_shapefile):
-    """
-    Given valid TIGER/Line census tract shapefiles, loads a GeoDataFrame using geopandas, clean its entries, and return it.
-
-    Parameters
-    ----------
-    input_shapefile : str or Path
-        Location of the .shp file for the desired tracts. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for the shapefile to successfully load.
-
-    areawater_shapefile : str or Path (or list thereof), optional
-        Location of the .shp file or .shp files for water areas to subtract from the census tract geometries. Note that other auxiliary files (.shx, .dbf, .prj) are required in the same directory for each shapefile to successfully load. Default is None.
-    
-    Returns
-    -------
-    gdf : gpd.GeoDataFrame
-        GeoDataFrame of census tracts in NYC with the columns:
-        GEOID : str, 11-digit GEOID for tract
-        borough : str, representing the name of the borough
-        tract : str, Census tract number
-        area : int64, land area of tract in square meters
-        lat : str, latitude of the tract's internal point
-        long : str, longitude of the tract's internal point
-        geometry : Polygon, representing the tract in WGS84
-    """
-
-    # Load census tract shapefile
-    gdf = gpd.read_file(input_shapefile)
-
-    # Preprocessing: clean GEOIDs
-    geoids = utils.clean_geoid(gdf["GEOID"])
-    gdf["GEOID"] = geoids
-
-    # Remove unnecessary columns
-    gdf = gdf.drop(columns=["GEOIDFQ", "MTFCC", "FUNCSTAT", "STATEFP", "COUNTYFP", "TRACTCE", "NAMELSAD", "AWATER"])
-
-    # Rename remaining columns to be more intuitive
-    gdf = gdf.rename(columns={
-        "NAME": "TRACT",
-        "ALAND": "AREA",
-        "INTPTLAT": "LAT",
-        "INTPTLON": "LONG"
-    })
-
-    # Add new columns, and convert numeric columns to numbers
-    boroughs = utils.get_borough(geoids)
-    gdf.insert(1, "BOROUGH", boroughs)
-    
-    gdf[["LAT","LONG","AREA"]] = gdf[["LAT","LONG","AREA"]].apply(pd.to_numeric)
-
-    # Remove census tracts (rows) not in the five boroughs
-    gdf = gdf.dropna(subset=["BOROUGH"])
-
-    # Convert coordinate reference to WGS84 
-    gdf = gdf.to_crs(epsg=config.WGS84_EPSG)
-
-    # Load in an areawater GeoDataFrame
-    if not areawater_shapefile is None:
-        if isinstance(areawater_shapefile, Sequence):
-            # Multiple areawater shapefiles to combine
-            gdfs_water = [
-                gpd.read_file(f).to_crs(epsg=config.WGS84_EPSG) \
-                for f in config.AREAWATER
-            ]
-            gdf_water = gpd.GeoDataFrame( pd.concat(gdfs_water) )
-        else:
-            # Just a single shapefile
-            gdf_water = gpd.read_file(areawater_shapefile) \
-                        .to_crs(epsg=config.WGS84_EPSG)
-
-        # Subtract areawater polygons from the census tracts
-        gdf = gdf.overlay(gdf_water, how='difference')
-
-    # # Set index to GEOID
-    # gdf = gdf.set_index("GEOID")
-
-    return( gdf )
-
-def clean_areawater_draft():
+def clean_areawater():
     # Multiple areawater shapefiles to combine
     gdfs_water = [
         gpd.read_file(f).to_crs(epsg=config.WGS84_EPSG) \
@@ -158,7 +63,7 @@ def clean_areawater_draft():
     # Write to SQLite table
     database.save_to_db(gdf_water, "clean_areawater", spatial=True)
 
-def clean_tracts_draft():
+def clean_tracts():
     # Load census tract shapefile
     gdf = gpd.read_file(config.TRACTS_RAW)
 
