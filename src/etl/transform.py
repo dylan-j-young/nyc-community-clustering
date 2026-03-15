@@ -28,8 +28,13 @@ def run():
     logging.info("Transforming 2017 Zillow neighborhood boundaries...")
     transform_zillow()    
 
-
 def transform_tracts():
+    """
+    Perform the following transformations:
+    1. Remove water area from tract geometries
+    2. Remove fictitious adjacencies through docks of MH tracts in BK and Q
+    3. Drop low-population rows
+    """
     gdf = database.query_db("SELECT * FROM clean_tracts;")
     gdf_water = database.query_db("SELECT * FROM clean_areawater;")
 
@@ -39,6 +44,10 @@ def transform_tracts():
     gdf = _remove_docks(gdf)
     gdf = gdf.reset_index()
 
+    gdf = _filter_geoids(gdf,
+        _get_low_population_geoids()
+    )
+
     database.save_to_db(gdf, "analysis_tracts", spatial=True)
 
 def transform_decennial2020():
@@ -46,21 +55,28 @@ def transform_decennial2020():
     Perform the following transformations:
     1. Restrict columns to those provided in config/census_variables.yaml
     2. Rename columns according to config/census_variables.yaml
-    3. *TODO* Drop low-population rows
+    3. Drop low-population rows
     """
     df = database.query_db("SELECT * FROM clean_decennial2020;")
     
     # Keep only the columns listed in CENSUS_VARS
     # (Only pure counts, removing redundant columns)
+    df = df.set_index("geoid")
     census_var_renames = {
         key.lower(): value \
         for key, value in config.CENSUS_VARS["2020_census_dp"].items()
     }
     cols_to_keep = list( census_var_renames.keys() )
     df = df[df.columns.intersection(cols_to_keep)]
+    df = df.reset_index()
 
     # Rename columns
     df = df.rename( columns = census_var_renames )
+
+    # Drop low-pop rows
+    df = _filter_geoids(df,
+        _get_low_population_geoids()
+    )
 
     database.save_to_db(df, "analysis_decennial2020")
 
@@ -69,7 +85,7 @@ def transform_acs2023():
     Perform the following transformations:
     1. Rename ACS columns according to config/census_variables.yaml
     2. Drop columns representing margin of error
-    3. *TODO* Drop low-population rows
+    3. Drop low-population rows
     4. *TODO* Geographic interpolation of select columns
     """
     df = database.query_db("SELECT * FROM clean_acs2023;")
@@ -86,7 +102,10 @@ def transform_acs2023():
     margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
     df = df.drop(columns=margin_cols)
 
-    # TODO : Drop low-pop rows
+    # Drop low-pop rows
+    df = _filter_geoids(df,
+        _get_low_population_geoids()
+    )
 
     # TODO : Geographic interpolation
     
@@ -145,10 +164,22 @@ def _remove_docks(gdf):
     for id in dock_tract_ids:
         gdf.loc[id] = dock_tracts_clipped.loc[id]
     
-    return(gdf)
+    return gdf
+
+def _get_low_population_geoids():
+    """Returns all geoids in New York State with low population or household number."""
+    # hardcoded from census_variables.yaml
+    pop_column = "DP1_0001C".lower() 
+    household_column = "DP1_0113C".lower()
+
+    df = database.query_db(f"""
+        SELECT geoid FROM clean_decennial2020
+        WHERE {pop_column} < 200
+            OR {household_column} < 100
+    """)
+    return set(df['geoid'])
+
+def _filter_geoids(df, exclude):
+    return df[~df['geoid'].isin(exclude)]
 
 # Filter rows (this can be SQL'd)
-
-# Combine tables? Or not?
-
-
