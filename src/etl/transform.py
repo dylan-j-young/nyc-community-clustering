@@ -86,7 +86,7 @@ def transform_acs2023():
     1. Rename ACS columns according to config/census_variables.yaml
     2. Drop columns representing margin of error
     3. Drop low-population rows
-    4. *TODO* Geographic interpolation of select columns
+    4. Geographic interpolation of select columns
     """
     df = database.query_db("SELECT * FROM clean_acs2023;")
 
@@ -99,7 +99,9 @@ def transform_acs2023():
 
     # Drop columns with margins of error
     all_cols = df.columns.to_numpy()
-    margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
+    margin_cols = all_cols[
+        [(col[:4] == "err_") for col in all_cols]
+    ]
     df = df.drop(columns=margin_cols)
 
     # Drop low-pop rows
@@ -107,7 +109,8 @@ def transform_acs2023():
         _get_low_population_geoids()
     )
 
-    # TODO : Geographic interpolation
+    # Geographic interpolation
+    df = _interpolate_acs_data(df)
     
     database.save_to_db(df, "analysis_acs2023")
 
@@ -182,4 +185,14 @@ def _get_low_population_geoids():
 def _filter_geoids(df, exclude):
     return df[~df['geoid'].isin(exclude)]
 
-# Filter rows (this can be SQL'd)
+def _interpolate_acs_data(df):
+    tracts = database.query_db("SELECT * FROM analysis_tracts").set_index("geoid")
+
+    df = df.set_index("geoid")
+    for col in ["medianhouseholdincome", "medianhomevalue", "medianrent"]:
+        df[col] = utils.interpolate_from_neighbors(
+            tracts, df[col], verbose=False
+        )
+    df = df.reset_index()
+
+    return df
