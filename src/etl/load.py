@@ -142,20 +142,12 @@ def clean_acs2023():
     df = df.drop(columns=["state","county","tract"])
     
     # Convert strings of numbers to numbers
-    # for col in df:
-    #     df[col] = pd.to_numeric(df[col], errors="raise")
     df = clean_raw_types(df)
 
     # Label unfilled entries with nan
     df = df.replace(-888888888, np.nan)
     df = df.replace(-666666666, np.nan)
     df = df.replace(-222222222, np.nan)
-
-    ## TODO: move to analysis cleaning
-    # # Drop columns with margins of error
-    # all_cols = df.columns.to_numpy()
-    # margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
-    # df = df.drop(columns=margin_cols)
 
     # Export cleaned DataFrame to file
     database.save_to_db(df, "clean_acs2023")

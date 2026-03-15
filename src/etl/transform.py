@@ -12,8 +12,22 @@ from .. import config, database, utils
 def run():
     logging.info("--- 3) TRANSFORM PHASE ---")
 
-    logging.info("Generating analysis tract geometries...")
+    logging.info("Transforming tract geometries...")
     transform_tracts()
+
+    logging.info("Transforming 2020 Demographic Profile data...")
+    transform_decennial2020()
+
+    logging.info("Transforming 2023 ACS data...")
+    transform_acs2023()    
+
+    # These do nothing, just pushes tables through transform
+    logging.info("Transforming Neighborhood Tabulation Areas...")
+    transform_ntas()    
+
+    logging.info("Transforming 2017 Zillow neighborhood boundaries...")
+    transform_zillow()    
+
 
 def transform_tracts():
     gdf = database.query_db("SELECT * FROM clean_tracts;")
@@ -27,6 +41,70 @@ def transform_tracts():
 
     database.save_to_db(gdf, "analysis_tracts", spatial=True)
 
+def transform_decennial2020():
+    """
+    Perform the following transformations:
+    1. Restrict columns to those provided in config/census_variables.yaml
+    2. Rename columns according to config/census_variables.yaml
+    3. *TODO* Drop low-population rows
+    """
+    df = database.query_db("SELECT * FROM clean_decennial2020;")
+    
+    # Keep only the columns listed in CENSUS_VARS
+    # (Only pure counts, removing redundant columns)
+    census_var_renames = {
+        key.lower(): value \
+        for key, value in config.CENSUS_VARS["2020_census_dp"].items()
+    }
+    cols_to_keep = list( census_var_renames.keys() )
+    df = df[df.columns.intersection(cols_to_keep)]
+
+    # Rename columns
+    df = df.rename( columns = census_var_renames )
+
+    database.save_to_db(df, "analysis_decennial2020")
+
+def transform_acs2023():
+    """
+    Perform the following transformations:
+    1. Rename ACS columns according to config/census_variables.yaml
+    2. Drop columns representing margin of error
+    3. *TODO* Drop low-population rows
+    4. *TODO* Geographic interpolation of select columns
+    """
+    df = database.query_db("SELECT * FROM clean_acs2023;")
+
+    # Rename columns
+    census_var_renames = {
+        key.lower(): value \
+        for key, value in config.CENSUS_VARS["2023_acs_5yr_select"].items()
+    }
+    df = df.rename( columns = census_var_renames )
+
+    # Drop columns with margins of error
+    all_cols = df.columns.to_numpy()
+    margin_cols = all_cols[[(col[:4] == "err_") for col in all_cols]]
+    df = df.drop(columns=margin_cols)
+
+    # TODO : Drop low-pop rows
+
+    # TODO : Geographic interpolation
+    
+    database.save_to_db(df, "analysis_acs2023")
+
+def transform_ntas():
+    """Does nothing."""
+
+    gdf = database.query_db("SELECT * FROM clean_ntas;")
+
+    database.save_to_db(gdf, "analysis_ntas", spatial=True)
+
+def transform_zillow():
+    """Does nothing."""
+    
+    gdf = database.query_db("SELECT * FROM clean_zillow;")
+
+    database.save_to_db(gdf, "analysis_zillow", spatial=True)
 
 def _remove_water(gdf, gdf_water):
     # Subtract areawater polygons from the census tracts
@@ -68,25 +146,6 @@ def _remove_docks(gdf):
         gdf.loc[id] = dock_tracts_clipped.loc[id]
     
     return(gdf)
-
-# Restrict columns (this can be a SQL thing)
-
-#   # dp
-    ## TODO : move to analysis cleaning
-    # # Keep only the columns listed in CENSUS_VARS
-    # # (Only pure counts, removing redundant columns)
-    # census_var_renames = config.CENSUS_VARS["2020_census_dp"]
-    # cols_to_keep = list( census_var_renames.keys() )
-    # df = df[df.columns.intersection(cols_to_keep)]
-
-    # # Rename columns
-    # df = df.rename( columns = census_var_renames )
-
-#   # acs
-    ## TODO : move to analysis cleaning
-    # # Rename columns
-    # census_var_renames = config.CENSUS_VARS["2023_acs_5yr_select"]
-    # df = df.rename( columns = census_var_renames )
 
 # Filter rows (this can be SQL'd)
 
